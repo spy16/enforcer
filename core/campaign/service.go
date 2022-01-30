@@ -2,7 +2,6 @@ package campaign
 
 import (
 	"context"
-	"time"
 
 	"github.com/spy16/enforcer"
 )
@@ -32,6 +31,9 @@ func (en *Service) ListCampaigns(ctx context.Context, q Query) ([]Campaign, erro
 	return q.filterCampaigns(res), nil
 }
 
+// CreateCampaign validates and inserts a new campaign into the storage.
+// Campaign ID is assigned automatically and the stored version of the
+// campaign is returned.
 func (en *Service) CreateCampaign(ctx context.Context, camp Campaign) (*Campaign, error) {
 	if err := camp.Validate(); err != nil {
 		return nil, err
@@ -46,43 +48,25 @@ func (en *Service) CreateCampaign(ctx context.Context, camp Campaign) (*Campaign
 	return &camp, nil
 }
 
+// UpdateCampaign merges the given partial campaign object with the existing
+// campaign and stores. The updated version is returned. Some fields may not
+// undergo update based on current usage status.
 func (en *Service) UpdateCampaign(ctx context.Context, partial Campaign) (*Campaign, error) {
 	if partial.ID <= 0 {
 		return nil, enforcer.ErrInvalid.WithMsgf("invalid id: %d", partial.ID)
 	}
 
 	updateFn := func(ctx context.Context, actual *Campaign) error {
-		return en.mergePartial(actual, partial)
+		return actual.merge(partial)
 	}
 
 	return en.Store.UpdateCampaign(ctx, partial.ID, updateFn)
 }
 
+// DeleteCampaign deletes a campaign by the identifier.
 func (en *Service) DeleteCampaign(ctx context.Context, campaignID int) error {
 	if campaignID <= 0 {
 		return enforcer.ErrInvalid.WithMsgf("invalid id: %d", campaignID)
 	}
 	return en.Store.DeleteCampaign(ctx, campaignID)
-}
-
-func (en *Service) mergePartial(actual *Campaign, partial Campaign) error {
-	// TODO: merge partial into actual. Return error if non-overridable.
-
-	isUsed := actual.IsActive(time.Now()) && actual.CurEnrolments > 0
-	if isUsed {
-		activeEnrErr := enforcer.ErrInvalid.WithCausef("%d active enrolments", actual.CurEnrolments)
-		if len(partial.Steps) != 0 {
-			return activeEnrErr.WithMsgf("steps cannot be edited")
-		}
-
-		if partial.Eligibility != "" {
-			return activeEnrErr.WithMsgf("eligibility rule cannot be edited")
-		}
-	}
-
-	if partial.Name != "" {
-		actual.Name = partial.Name
-	}
-
-	return actual.Validate()
 }

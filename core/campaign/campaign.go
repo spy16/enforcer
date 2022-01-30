@@ -1,7 +1,6 @@
 package campaign
 
 import (
-	"context"
 	"strings"
 	"time"
 
@@ -31,10 +30,8 @@ type Campaign struct {
 // IsActive returns true if the campaign is still active relative
 // to the given timestamp.
 func (c Campaign) IsActive(at time.Time) bool {
-	if !c.Enabled {
-		return false
-	}
-	return c.StartAt.Before(at) && c.EndAt.Before(at)
+	return c.Enabled &&
+		c.StartAt.Before(at) && c.EndAt.After(at)
 }
 
 // HasAllTags returns true if the campaign has all given tags.
@@ -82,65 +79,26 @@ func (c *Campaign) Validate() error {
 	return nil
 }
 
-// Store implementation provides storage for campaign data.
-// Storage layer must ensure efficient query based on id, tags and
-// start/end-at timestamps.
-type Store interface {
-	GetCampaign(ctx context.Context, id int) (*Campaign, error)
-	ListCampaigns(ctx context.Context, q Query, p *Pager) ([]Campaign, error)
-	CreateCampaign(ctx context.Context, camp Campaign) (int, error)
-	UpdateCampaign(ctx context.Context, id int, updateFn UpdateFn) (*Campaign, error)
-	DeleteCampaign(ctx context.Context, id int) error
-}
+func (c *Campaign) merge(partial Campaign) error {
+	// TODO: merge partial into actual. Return error if non-overridable.
 
-// UpdateFn typed func value is used by campaign store to
-// update an existing campaign atomically.
-type UpdateFn func(ctx context.Context, actual *Campaign) error
+	isUsed := c.IsActive(time.Now()) && c.CurEnrolments > 0
+	if isUsed {
+		activeEnrErr := enforcer.ErrInvalid.WithCausef("%d active enrolments", c.CurEnrolments)
+		if len(partial.Steps) != 0 {
+			return activeEnrErr.WithMsgf("steps cannot be edited")
+		}
 
-// Pager represents pagination options.
-type Pager struct {
-	Offset  int `json:"offset,omitempty"`
-	MaxSize int `json:"max_size,omitempty"`
-}
-
-// Query represents filtering options for the listing store.
-// All criteria act in AND combination unless specified otherwise.
-type Query struct {
-	Include    []int    `json:"include,omitempty"`
-	SearchIn   []int    `json:"search_in,omitempty"`
-	OnlyActive bool     `json:"only_active,omitempty"`
-	HavingTags []string `json:"having_tags,omitempty"`
-}
-
-func (q Query) filterCampaigns(arr []Campaign) []Campaign {
-	searchSet := map[int]struct{}{}
-	for _, id := range q.SearchIn {
-		searchSet[id] = struct{}{}
-	}
-
-	var res []Campaign
-	for _, camp := range arr {
-		if q.matchQuery(camp) {
-			res = append(res, camp)
+		if partial.Eligibility != "" {
+			return activeEnrErr.WithMsgf("eligibility rule cannot be edited")
 		}
 	}
-	return res
-}
 
-func (q Query) matchQuery(c Campaign) bool {
-	isMatch := !q.OnlyActive || c.IsActive(time.Now())
-	if len(q.SearchIn) > 0 {
-		found := false
-		for _, id := range q.SearchIn {
-			if id == c.ID {
-				found = true
-				break
-			}
-		}
-		isMatch = isMatch && found
+	if partial.Name != "" {
+		c.Name = partial.Name
 	}
-	isMatch = isMatch && (len(q.HavingTags) == 0 || c.HasAllTags(q.HavingTags))
-	return isMatch
+
+	return c.Validate()
 }
 
 func cleanTags(tags []string) []string {
