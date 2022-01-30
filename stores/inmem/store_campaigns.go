@@ -2,7 +2,6 @@ package inmem
 
 import (
 	"context"
-	"time"
 
 	"github.com/spy16/enforcer"
 	"github.com/spy16/enforcer/core/campaign"
@@ -24,19 +23,8 @@ func (mem *Store) ListCampaigns(ctx context.Context, q campaign.Query, p *campai
 	defer mem.mu.RUnlock()
 
 	var res []campaign.Campaign
-	if len(q.SearchIn) > 0 {
-		for _, id := range q.SearchIn {
-			c, found := mem.campaigns[id]
-			if found && matchQuery(c, q) {
-				res = append(res, c)
-			}
-		}
-	} else {
-		for _, c := range mem.campaigns {
-			if matchQuery(c, q) {
-				res = append(res, c)
-			}
-		}
+	for _, c := range mem.campaigns {
+		res = append(res, c)
 	}
 
 	return res, nil
@@ -85,10 +73,4 @@ func (mem *Store) DeleteCampaign(ctx context.Context, campaignID int) error {
 
 	delete(mem.campaigns, campaignID)
 	return nil
-}
-
-func matchQuery(c campaign.Campaign, q campaign.Query) bool {
-	isMatch := !q.OnlyActive || c.IsActive(time.Now())
-	isMatch = isMatch && (len(q.HavingTags) == 0 || c.HasAllTags(q.HavingTags))
-	return isMatch
 }

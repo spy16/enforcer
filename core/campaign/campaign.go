@@ -22,7 +22,7 @@ type Campaign struct {
 	EndAt         time.Time `json:"end_at"`
 	Eligibility   string    `json:"eligibility"`
 	MaxEnrolments int       `json:"max_enrolments"`
-	RemEnrolments int       `json:"remaining_enrolments"`
+	CurEnrolments int       `json:"current_enrolments"`
 	Deadline      int       `json:"deadline"`
 	IsUnordered   bool      `json:"is_unordered"`
 	Steps         []string  `json:"steps"`
@@ -110,6 +110,37 @@ type Query struct {
 	SearchIn   []int    `json:"search_in,omitempty"`
 	OnlyActive bool     `json:"only_active,omitempty"`
 	HavingTags []string `json:"having_tags,omitempty"`
+}
+
+func (q Query) filterCampaigns(arr []Campaign) []Campaign {
+	searchSet := map[int]struct{}{}
+	for _, id := range q.SearchIn {
+		searchSet[id] = struct{}{}
+	}
+
+	var res []Campaign
+	for _, camp := range arr {
+		if q.matchQuery(camp) {
+			res = append(res, camp)
+		}
+	}
+	return res
+}
+
+func (q Query) matchQuery(c Campaign) bool {
+	isMatch := !q.OnlyActive || c.IsActive(time.Now())
+	if len(q.SearchIn) > 0 {
+		found := false
+		for _, id := range q.SearchIn {
+			if id == c.ID {
+				found = true
+				break
+			}
+		}
+		isMatch = isMatch && found
+	}
+	isMatch = isMatch && (len(q.HavingTags) == 0 || c.HasAllTags(q.HavingTags))
+	return isMatch
 }
 
 func cleanTags(tags []string) []string {

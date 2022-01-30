@@ -3,6 +3,7 @@ package enrolment
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sort"
 	"time"
 
@@ -33,11 +34,7 @@ func (en *Service) GetEnrolment(ctx context.Context, actor Actor, campaignID int
 		return nil, err
 	}
 
-	enr, err = en.prepEnrolment(ctx, actor, *camp)
-	if err != nil {
-		return nil, err
-	}
-	return enr, nil
+	return en.prepEnrolment(ctx, actor, *camp)
 }
 
 func (en *Service) ListEnrolments(ctx context.Context, actor Actor, q Query) ([]Enrolment, error) {
@@ -49,12 +46,6 @@ func (en *Service) ListEnrolments(ctx context.Context, actor Actor, q Query) ([]
 	existing, err := en.Store.ListEnrolments(ctx, actor.ID, q.Status)
 	if err != nil || needOnlyExisting {
 		return existing, err
-	}
-
-	for i, enrolment := range existing {
-		if time.Now().After(enrolment.EndsAt) {
-			existing[i].Status = StatusExpired
-		}
 	}
 
 	q.Campaigns.Include = collectCampaignIDs(existing)
@@ -87,8 +78,44 @@ func (en *Service) ListEnrolments(ctx context.Context, actor Actor, q Query) ([]
 	return res, nil
 }
 
+func (en *Service) Enrol(ctx context.Context, actor Actor, campaignID int) (*Enrolment, error) {
+	enr, err := en.GetEnrolment(ctx, actor, campaignID)
+	if err != nil {
+		return nil, err
+	} else if enr.Status != StatusEligible {
+		return nil, enforcer.ErrConflict.WithMsgf("already enrolled")
+	}
+
+	enr.Status = StatusActive
+	enr.StartedAt = time.Now()
+	enr.EndsAt = enr.Campaign.EndAt
+	if enr.Campaign.Deadline > 0 {
+		deadlineDur := time.Duration(enr.Campaign.Deadline*24) * time.Hour
+		enr.EndsAt = enr.StartedAt.Add(deadlineDur)
+	}
+	if err := en.Store.CreateEnrolment(ctx, *enr); err != nil {
+		return nil, err
+	}
+	return enr, nil
+}
+
+type Event map[string]interface{}
+
+func (en *Service) Ingest(ctx context.Context, actor Actor, query Query, event Event) ([]Enrolment, error) {
+	applicableEnrolments, err := en.ListEnrolments(ctx, actor, query)
+	if err != nil {
+		return nil, err
+	}
+
+	var res []Enrolment
+	for _, enr := range applicableEnrolments {
+		fmt.Println(enr)
+	}
+	return res, nil
+}
+
 func (en *Service) prepEnrolment(ctx context.Context, actor Actor, camp campaign.Campaign) (*Enrolment, error) {
-	if camp.MaxEnrolments > 0 && camp.RemEnrolments == 0 {
+	if camp.MaxEnrolments > 0 && camp.CurEnrolments >= camp.MaxEnrolments {
 		return nil, enforcer.ErrIneligible.WithMsgf("already at maximum enrolments")
 	}
 
@@ -101,6 +128,7 @@ func (en *Service) prepEnrolment(ctx context.Context, actor Actor, camp campaign
 		ActorID:        actor.ID,
 		CampaignID:     camp.ID,
 		RemainingSteps: len(camp.Steps),
+		Campaign:       &camp,
 	}, nil
 }
 
