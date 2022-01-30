@@ -4,10 +4,9 @@ import (
 	"context"
 
 	"github.com/spy16/enforcer"
-	"github.com/spy16/enforcer/core/campaign"
 )
 
-func (mem *Store) GetCampaign(ctx context.Context, campaignID int) (*campaign.Campaign, error) {
+func (mem *Store) GetCampaign(ctx context.Context, campaignID int) (*enforcer.Campaign, error) {
 	mem.mu.RLock()
 	defer mem.mu.RUnlock()
 
@@ -18,11 +17,11 @@ func (mem *Store) GetCampaign(ctx context.Context, campaignID int) (*campaign.Ca
 	return &c, nil
 }
 
-func (mem *Store) ListCampaigns(ctx context.Context, q campaign.Query, p *campaign.Pager) ([]campaign.Campaign, error) {
+func (mem *Store) ListCampaigns(ctx context.Context, q enforcer.Query) ([]enforcer.Campaign, error) {
 	mem.mu.RLock()
 	defer mem.mu.RUnlock()
 
-	var res []campaign.Campaign
+	var res []enforcer.Campaign
 	for _, c := range mem.campaigns {
 		res = append(res, c)
 	}
@@ -30,12 +29,12 @@ func (mem *Store) ListCampaigns(ctx context.Context, q campaign.Query, p *campai
 	return res, nil
 }
 
-func (mem *Store) CreateCampaign(ctx context.Context, c campaign.Campaign) (int, error) {
+func (mem *Store) CreateCampaign(ctx context.Context, c enforcer.Campaign) (int, error) {
 	mem.mu.Lock()
 	defer mem.mu.Unlock()
 
 	if mem.campaigns == nil {
-		mem.campaigns = map[int]campaign.Campaign{}
+		mem.campaigns = map[int]enforcer.Campaign{}
 		mem.nextID = 1
 	}
 	// create a new one.
@@ -46,7 +45,7 @@ func (mem *Store) CreateCampaign(ctx context.Context, c campaign.Campaign) (int,
 	return c.ID, nil
 }
 
-func (mem *Store) UpdateCampaign(ctx context.Context, id int, updateFn campaign.UpdateFn) (*campaign.Campaign, error) {
+func (mem *Store) UpdateCampaign(ctx context.Context, id int, updateFn enforcer.UpdateCampaignFn) (*enforcer.Campaign, error) {
 	mem.mu.Lock()
 	defer mem.mu.Unlock()
 	c, found := mem.campaigns[id]

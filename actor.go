@@ -1,10 +1,6 @@
-package enrolment
+package enforcer
 
-import (
-	"strings"
-
-	"github.com/spy16/enforcer"
-)
+import "strings"
 
 // Actor represents some entity performing an action.
 type Actor struct {
@@ -15,7 +11,9 @@ type Actor struct {
 func (a *Actor) Validate() error {
 	a.ID = strings.TrimSpace(a.ID)
 	if a.ID == "" {
-		return enforcer.ErrInvalid.WithMsgf("empty actor_id")
+		return ErrInvalid.WithMsgf("empty actor_id")
 	}
 	return nil
 }
+
+type Event map[string]interface{}

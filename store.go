@@ -1,4 +1,4 @@
-package campaign
+package enforcer
 
 import (
 	"context"
@@ -10,21 +10,23 @@ import (
 // start/end-at timestamps.
 type Store interface {
 	GetCampaign(ctx context.Context, id int) (*Campaign, error)
-	ListCampaigns(ctx context.Context, q Query, p *Pager) ([]Campaign, error)
+	ListCampaigns(ctx context.Context, q Query) ([]Campaign, error)
 	CreateCampaign(ctx context.Context, camp Campaign) (int, error)
-	UpdateCampaign(ctx context.Context, id int, updateFn UpdateFn) (*Campaign, error)
+	UpdateCampaign(ctx context.Context, id int, updateFn UpdateCampaignFn) (*Campaign, error)
 	DeleteCampaign(ctx context.Context, id int) error
+
+	GetEnrolment(ctx context.Context, actorID string, campaignID int) (*Enrolment, error)
+	ListEnrolments(ctx context.Context, actorID string, status []string) ([]Enrolment, error)
+	CreateEnrolment(ctx context.Context, enrolment Enrolment) error
+	UpdateEnrolment(ctx context.Context, actorID string, campaignID int, updateFn UpdateEnrolmentFn) (*Enrolment, error)
 }
 
-// UpdateFn typed func value is used by campaign store to
+// UpdateCampaignFn typed func value is used by campaign store to
 // update an existing campaign atomically.
-type UpdateFn func(ctx context.Context, actual *Campaign) error
+type UpdateCampaignFn func(ctx context.Context, actual *Campaign) error
 
-// Pager represents pagination options.
-type Pager struct {
-	Offset  int `json:"offset,omitempty"`
-	MaxSize int `json:"max_size,omitempty"`
-}
+// UpdateEnrolmentFn is used by enrolment-store to perform updates atomically.
+type UpdateEnrolmentFn func(ctx context.Context, enr *Enrolment) error
 
 // Query represents filtering options for the listing store.
 // All criteria act in AND combination unless specified otherwise.
@@ -33,6 +35,10 @@ type Query struct {
 	SearchIn   []int    `json:"search_in,omitempty"`
 	OnlyActive bool     `json:"only_active,omitempty"`
 	HavingTags []string `json:"having_tags,omitempty"`
+
+	// paging options.
+	Offset  int `json:"offset,omitempty"`
+	MaxSize int `json:"max_size,omitempty"`
 }
 
 func (q Query) filterCampaigns(arr []Campaign) []Campaign {

@@ -1,4 +1,4 @@
-package enrolment
+package enforcer
 
 import (
 	"context"
@@ -6,30 +6,88 @@ import (
 	"fmt"
 	"sort"
 	"time"
-
-	"github.com/spy16/enforcer"
-	"github.com/spy16/enforcer/core/campaign"
 )
 
 type Service struct {
-	Store     Store
-	Campaigns *campaign.Service
+	Store Store
+}
+
+// GetCampaign returns campaign with given ID. Returns ErrNotFound if not found.
+func (en *Service) GetCampaign(ctx context.Context, campaignID int) (*Campaign, error) {
+	if campaignID <= 0 {
+		return nil, ErrInvalid.WithMsgf("invalid id: %d", campaignID)
+	}
+
+	res, err := en.Store.GetCampaign(ctx, campaignID)
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
+// ListCampaigns returns a list of campaigns matching the given search query.
+func (en *Service) ListCampaigns(ctx context.Context, q Query) ([]Campaign, error) {
+	res, err := en.Store.ListCampaigns(ctx, q)
+	if err != nil {
+		return nil, err
+	}
+	return q.filterCampaigns(res), nil
+}
+
+// CreateCampaign validates and inserts a new campaign into the storage.
+// Campaign ID is assigned automatically and the stored version of the
+// campaign is returned.
+func (en *Service) CreateCampaign(ctx context.Context, camp Campaign) (*Campaign, error) {
+	if err := camp.Validate(); err != nil {
+		return nil, err
+	}
+
+	id, err := en.Store.CreateCampaign(ctx, camp)
+	if err != nil {
+		return nil, err
+	}
+	camp.ID = id
+
+	return &camp, nil
+}
+
+// UpdateCampaign merges the given partial campaign object with the existing
+// campaign and stores. The updated version is returned. Some fields may not
+// undergo update based on current usage status.
+func (en *Service) UpdateCampaign(ctx context.Context, partial Campaign) (*Campaign, error) {
+	if partial.ID <= 0 {
+		return nil, ErrInvalid.WithMsgf("invalid id: %d", partial.ID)
+	}
+
+	updateFn := func(ctx context.Context, actual *Campaign) error {
+		return actual.merge(partial)
+	}
+
+	return en.Store.UpdateCampaign(ctx, partial.ID, updateFn)
+}
+
+// DeleteCampaign deletes a campaign by the identifier.
+func (en *Service) DeleteCampaign(ctx context.Context, campaignID int) error {
+	if campaignID <= 0 {
+		return ErrInvalid.WithMsgf("invalid id: %d", campaignID)
+	}
+	return en.Store.DeleteCampaign(ctx, campaignID)
 }
 
 func (en *Service) GetEnrolment(ctx context.Context, actor Actor, campaignID int) (*Enrolment, error) {
 	if err := actor.Validate(); err != nil {
 		return nil, err
 	} else if campaignID <= 0 {
-		return nil, enforcer.ErrInvalid.WithMsgf("campaign id must be positive integer, not %d", campaignID)
+		return nil, ErrInvalid.WithMsgf("campaign id must be positive integer, not %d", campaignID)
 	}
 
 	enr, err := en.Store.GetEnrolment(ctx, actor.ID, campaignID)
-	if !errors.Is(err, enforcer.ErrNotFound) {
+	if !errors.Is(err, ErrNotFound) {
 		return enr, err
 	}
 
 	// [active enrolment not found. figure out if eligible and return]
-	camp, err := en.Campaigns.GetCampaign(ctx, campaignID)
+	camp, err := en.GetCampaign(ctx, campaignID)
 	if err != nil {
 		return nil, err
 	}
@@ -37,19 +95,19 @@ func (en *Service) GetEnrolment(ctx context.Context, actor Actor, campaignID int
 	return en.prepEnrolment(ctx, actor, *camp)
 }
 
-func (en *Service) ListEnrolments(ctx context.Context, actor Actor, q Query) ([]Enrolment, error) {
+func (en *Service) ListEnrolments(ctx context.Context, actor Actor, status []string, q Query) ([]Enrolment, error) {
 	if err := actor.Validate(); err != nil {
 		return nil, err
 	}
 
-	needOnlyExisting := len(q.Status) > 0 && !contains(q.Status, StatusEligible)
-	existing, err := en.Store.ListEnrolments(ctx, actor.ID, q.Status)
+	needOnlyExisting := len(status) > 0 && !contains(status, StatusEligible)
+	existing, err := en.Store.ListEnrolments(ctx, actor.ID, status)
 	if err != nil || needOnlyExisting {
 		return existing, err
 	}
 
-	q.Campaigns.Include = collectCampaignIDs(existing)
-	applicableCampaigns, err := en.Campaigns.ListCampaigns(ctx, q.Campaigns)
+	q.Include = collectCampaignIDs(existing)
+	applicableCampaigns, err := en.ListCampaigns(ctx, q)
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +125,7 @@ func (en *Service) ListEnrolments(ctx context.Context, actor Actor, q Query) ([]
 
 		enr, err := en.prepEnrolment(ctx, actor, pe.Campaign)
 		if err != nil {
-			if errors.Is(err, enforcer.ErrIneligible) {
+			if errors.Is(err, ErrIneligible) {
 				continue // not eligible for this.
 			}
 			return nil, err
@@ -83,7 +141,7 @@ func (en *Service) Enrol(ctx context.Context, actor Actor, campaignID int) (*Enr
 	if err != nil {
 		return nil, err
 	} else if enr.Status != StatusEligible {
-		return nil, enforcer.ErrConflict.WithMsgf("already enrolled")
+		return nil, ErrConflict.WithMsgf("already enrolled")
 	}
 
 	enr.Status = StatusActive
@@ -99,10 +157,8 @@ func (en *Service) Enrol(ctx context.Context, actor Actor, campaignID int) (*Enr
 	return enr, nil
 }
 
-type Event map[string]interface{}
-
 func (en *Service) Ingest(ctx context.Context, actor Actor, query Query, event Event) ([]Enrolment, error) {
-	applicableEnrolments, err := en.ListEnrolments(ctx, actor, query)
+	applicableEnrolments, err := en.ListEnrolments(ctx, actor, nil, query)
 	if err != nil {
 		return nil, err
 	}
@@ -114,9 +170,9 @@ func (en *Service) Ingest(ctx context.Context, actor Actor, query Query, event E
 	return res, nil
 }
 
-func (en *Service) prepEnrolment(ctx context.Context, actor Actor, camp campaign.Campaign) (*Enrolment, error) {
+func (en *Service) prepEnrolment(ctx context.Context, actor Actor, camp Campaign) (*Enrolment, error) {
 	if camp.MaxEnrolments > 0 && camp.CurEnrolments >= camp.MaxEnrolments {
-		return nil, enforcer.ErrIneligible.WithMsgf("already at maximum enrolments")
+		return nil, ErrIneligible.WithMsgf("already at maximum enrolments")
 	}
 
 	if camp.Eligibility != "" {
@@ -132,7 +188,7 @@ func (en *Service) prepEnrolment(ctx context.Context, actor Actor, camp campaign
 	}, nil
 }
 
-func preparePotentialList(enrolments []Enrolment, campaigns []campaign.Campaign) []potentialEnrolment {
+func preparePotentialList(enrolments []Enrolment, campaigns []Campaign) []potentialEnrolment {
 	enrIdx := map[int]int{}
 	for i, e := range enrolments {
 		enrIdx[e.CampaignID] = i
@@ -165,7 +221,7 @@ func collectCampaignIDs(enrolments []Enrolment) []int {
 type potentialEnrolment struct {
 	Weight   int
 	Existing *Enrolment
-	Campaign campaign.Campaign
+	Campaign Campaign
 }
 
 func contains(arr []string, item string) bool {

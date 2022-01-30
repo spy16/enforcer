@@ -4,10 +4,9 @@ import (
 	"context"
 
 	"github.com/spy16/enforcer"
-	"github.com/spy16/enforcer/core/enrolment"
 )
 
-func (mem *Store) GetEnrolment(ctx context.Context, actorID string, campaignID int) (*enrolment.Enrolment, error) {
+func (mem *Store) GetEnrolment(ctx context.Context, actorID string, campaignID int) (*enforcer.Enrolment, error) {
 	mem.mu.RLock()
 	defer mem.mu.RUnlock()
 
@@ -19,11 +18,11 @@ func (mem *Store) GetEnrolment(ctx context.Context, actorID string, campaignID i
 	return &e, nil
 }
 
-func (mem *Store) ListEnrolments(ctx context.Context, actorID string, status []string) ([]enrolment.Enrolment, error) {
+func (mem *Store) ListEnrolments(ctx context.Context, actorID string, status []string) ([]enforcer.Enrolment, error) {
 	mem.mu.RLock()
 	defer mem.mu.RUnlock()
 
-	var res []enrolment.Enrolment
+	var res []enforcer.Enrolment
 	for _, enr := range mem.enrolments[actorID] {
 		if len(status) == 0 || contains(status, enr.Status) {
 			res = append(res, enr)
@@ -32,22 +31,26 @@ func (mem *Store) ListEnrolments(ctx context.Context, actorID string, status []s
 	return res, nil
 }
 
-func (mem *Store) CreateEnrolment(ctx context.Context, enr enrolment.Enrolment) error {
+func (mem *Store) CreateEnrolment(ctx context.Context, enr enforcer.Enrolment) error {
 	mem.mu.Lock()
 	defer mem.mu.Unlock()
 
+	camp := mem.campaigns[enr.CampaignID]
+	camp.CurEnrolments++
+	mem.campaigns[enr.CampaignID] = camp
+
 	if mem.enrolments == nil {
-		mem.enrolments = map[string]map[int]enrolment.Enrolment{}
+		mem.enrolments = map[string]map[int]enforcer.Enrolment{}
 	}
 	if _, found := mem.enrolments[enr.ActorID]; !found {
-		mem.enrolments[enr.ActorID] = map[int]enrolment.Enrolment{}
+		mem.enrolments[enr.ActorID] = map[int]enforcer.Enrolment{}
 	}
 
 	mem.enrolments[enr.ActorID][enr.CampaignID] = enr
 	return nil
 }
 
-func (mem *Store) UpdateEnrolment(ctx context.Context, actorID string, campaignID int, updateFn enrolment.UpdateFn) (*enrolment.Enrolment, error) {
+func (mem *Store) UpdateEnrolment(ctx context.Context, actorID string, campaignID int, updateFn enforcer.UpdateEnrolmentFn) (*enforcer.Enrolment, error) {
 	mem.mu.Lock()
 	defer mem.mu.Unlock()
 
