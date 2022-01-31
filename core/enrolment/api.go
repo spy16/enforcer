@@ -3,6 +3,7 @@ package enrolment
 import (
 	"context"
 	"errors"
+	"log"
 	"time"
 
 	"github.com/spy16/enforcer"
@@ -21,43 +22,9 @@ type campaignsAPI interface {
 	List(ctx context.Context, q campaign.Query) ([]campaign.Campaign, error)
 }
 
-// Enrol binds the given actor to the campaign. Boolean flag will be set only if a new
-// enrolment is created.
-func (api *API) Enrol(ctx context.Context, campaignName string, ac actor.Actor) (*Enrolment, bool, error) {
-	enr, err := api.Store.GetEnrolment(ctx, ac.ID, campaignName)
-	if !errors.Is(err, enforcer.ErrNotFound) {
-		enr.setStatus()
-		return enr, false, err
-	}
-
-	camp, err := api.CampaignsAPI.Get(ctx, campaignName)
-	if err != nil {
-		return nil, false, err
-	}
-
-	if err := api.checkEligibility(ctx, *camp, ac); err != nil {
-		return nil, false, err
-	}
-
-	newEnr := &Enrolment{
-		Status:         StatusActive,
-		ActorID:        ac.ID,
-		CampaignID:     camp.Name,
-		StartedAt:      time.Now(),
-		EndsAt:         camp.EndAt,
-		RemainingSteps: len(camp.Spec.Steps),
-	}
-
-	if camp.Spec.Deadline > 0 {
-		// relative end_date due to deadline (in days)
-		newEnr.EndsAt = newEnr.StartedAt.AddDate(0, 0, camp.Spec.Deadline)
-	}
-
-	return newEnr, true, api.Store.CreateEnrolment(ctx, *newEnr)
-}
-
-// Get returns an enrolment for campaign and an actor. If actor is not already enrolled into
-// the campaign and is eligible, a virtual enrolment with status StatusEligible is returned.
+// Get returns an enrolment for campaign and an actor. If actor is not already
+// enrolled into the campaign and is eligible, a virtual enrolment with status
+// StatusEligible is returned.
 func (api *API) Get(ctx context.Context, campaignName string, ac actor.Actor) (*Enrolment, error) {
 	enr, err := api.Store.GetEnrolment(ctx, ac.ID, campaignName)
 	if !errors.Is(err, enforcer.ErrNotFound) {
@@ -73,16 +40,22 @@ func (api *API) Get(ctx context.Context, campaignName string, ac actor.Actor) (*
 	return api.prepEnrolment(ctx, *camp, ac)
 }
 
-// List returns a list of enrolments with given statuses. If the status includes StatusEligible,
-// then all eligible enrolments are returned as well.
-func (api *API) List(ctx context.Context, ac actor.Actor, status []string, campQ campaign.Query) ([]Enrolment, error) {
-	onlyExisting := !contains(status, StatusEligible)
-	existing, err := api.Store.ListEnrolments(ctx, ac.ID)
-	if err != nil || onlyExisting {
-		for i := range existing {
-			existing[i].setStatus()
-		}
-		return filterByStatus(existing, status), err
+// ListExisting returns a list of existing enrolments in one of given statuses.
+// The returned list will not include eligible enrolments.
+func (api *API) ListExisting(ctx context.Context, actorID string, status []string) ([]Enrolment, error) {
+	existing, err := api.Store.ListEnrolments(ctx, actorID)
+	if err != nil {
+		return nil, err
+	}
+	return filterByStatus(existing, status), nil
+}
+
+// ListAll returns all enrolments including existing and eligible. Eligible enrolments
+// are computed based on the campaign query provided and actor data.
+func (api *API) ListAll(ctx context.Context, ac actor.Actor, campQ campaign.Query) ([]Enrolment, error) {
+	existing, err := api.ListExisting(ctx, ac.ID, nil)
+	if err != nil {
+		return nil, err
 	}
 
 	camps, err := api.CampaignsAPI.List(ctx, campQ)
@@ -104,6 +77,62 @@ func (api *API) List(ctx context.Context, ac actor.Actor, status []string, campQ
 	return res, nil
 }
 
+// Enrol binds the given actor to the campaign. Boolean flag will be set only if
+// a new enrolment is created.
+func (api *API) Enrol(ctx context.Context, campaignName string, ac actor.Actor) (*Enrolment, bool, error) {
+	enr, err := api.Store.GetEnrolment(ctx, ac.ID, campaignName)
+	if !errors.Is(err, enforcer.ErrNotFound) {
+		enr.setStatus()
+		return enr, false, err
+	}
+
+	camp, err := api.CampaignsAPI.Get(ctx, campaignName)
+	if err != nil {
+		return nil, false, err
+	}
+
+	newEnr, err := api.prepEnrolment(ctx, *camp, ac)
+	if err != nil {
+		return nil, false, err
+	}
+
+	newEnr.StartedAt = time.Now()
+	newEnr.EndsAt = camp.EndAt
+	if camp.Spec.Deadline > 0 {
+		// relative end_date due to deadline (in days)
+		newEnr.EndsAt = newEnr.StartedAt.AddDate(0, 0, camp.Spec.Deadline)
+	}
+	newEnr.setStatus()
+
+	return newEnr, true, api.Store.UpsertEnrolment(ctx, *newEnr)
+}
+
+// Ingest processes the action within current enrolments and returns the list of
+// enrolments that progressed. If completeMulti is false, only one enrolment will
+// be progressed.
+func (api *API) Ingest(ctx context.Context, completeMulti bool, act actor.Action) ([]Enrolment, error) {
+	applicable, err := api.ListExisting(ctx, act.Actor.ID, []string{StatusActive})
+	if err != nil {
+		return nil, err
+	}
+
+	var res []Enrolment
+	var isAffected bool
+	var completionErr error
+	for _, enr := range applicable {
+		isAffected, completionErr = api.applyCompletion(ctx, act, &enr)
+		if completionErr != nil {
+			break
+		} else if isAffected {
+			if completionErr = api.Store.UpsertEnrolment(ctx, enr); completionErr != nil {
+				break
+			}
+			res = append(res, enr)
+		}
+	}
+	return res, completionErr
+}
+
 func (api *API) prepEnrolment(ctx context.Context, camp campaign.Campaign, ac actor.Actor) (*Enrolment, error) {
 	if err := api.checkEligibility(ctx, camp, ac); err != nil {
 		return nil, err
@@ -122,22 +151,14 @@ func (api *API) checkEligibility(ctx context.Context, camp campaign.Campaign, ac
 	return enforcer.ErrIneligible
 }
 
-func contains(arr []string, item string) bool {
-	for _, s := range arr {
-		if s == item {
-			return true
-		}
+func (api *API) applyCompletion(ctx context.Context, act actor.Action, enr *Enrolment) (bool, error) {
+	camp, err := api.CampaignsAPI.Get(ctx, enr.CampaignID)
+	if err != nil {
+		return false, err
 	}
-	return false
-}
+	log.Printf("checking completion for '%s'", camp.Name)
 
-func filterByStatus(arr []Enrolment, status []string) []Enrolment {
-	var res []Enrolment
-	for _, enr := range arr {
-		enr.setStatus()
-		if contains(status, enr.Status) {
-			res = append(res, enr)
-		}
-	}
-	return res
+	// TODO: figure out step completion procedure.
+
+	return false, nil
 }
