@@ -94,6 +94,7 @@ func TestCampaign_Validate(t *testing.T) {
 				Enabled: false,
 				StartAt: now.AddDate(0, 0, -3),
 				EndAt:   now.AddDate(0, 0, 3),
+				Tags:    []string{"", "foo:bar"},
 			},
 			wantErr: ErrInvalid,
 		},

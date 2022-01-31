@@ -5,16 +5,21 @@ import (
 	"time"
 )
 
-// Store implementation provides storage for campaign data.
-// Storage layer must ensure efficient query based on id, tags and
-// start/end-at timestamps.
+// Store implementation provides storage for campaign and enrolment data.
 type Store interface {
+	campaignStore
+	enrolmentStore
+}
+
+type campaignStore interface {
 	GetCampaign(ctx context.Context, id int) (*Campaign, error)
 	ListCampaigns(ctx context.Context, q Query) ([]Campaign, error)
 	CreateCampaign(ctx context.Context, camp Campaign) (int, error)
 	UpdateCampaign(ctx context.Context, id int, updateFn UpdateCampaignFn) (*Campaign, error)
 	DeleteCampaign(ctx context.Context, id int) error
+}
 
+type enrolmentStore interface {
 	GetEnrolment(ctx context.Context, actorID string, campaignID int) (*Enrolment, error)
 	ListEnrolments(ctx context.Context, actorID string, status []string) ([]Enrolment, error)
 	CreateEnrolment(ctx context.Context, enrolment Enrolment) error

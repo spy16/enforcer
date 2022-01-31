@@ -16,4 +16,9 @@ func (a *Actor) Validate() error {
 	return nil
 }
 
-type Event map[string]interface{}
+type Event struct {
+	ID    string                 `json:"id"`
+	Actor Actor                  `json:"actor"`
+	Query Query                  `json:"query"`
+	Data  map[string]interface{} `json:"data"`
+}

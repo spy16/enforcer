@@ -3,7 +3,7 @@ package enforcer
 import (
 	"context"
 	"errors"
-	"fmt"
+	"log"
 	"sort"
 	"time"
 )
@@ -74,6 +74,9 @@ func (en *Service) DeleteCampaign(ctx context.Context, campaignID int) error {
 	return en.Store.DeleteCampaign(ctx, campaignID)
 }
 
+// GetEnrolment returns enrolment for given actor and campaign. If an enrolment
+// is not already active/ongoing, an enrolment in eligible state might be returned
+// based on eligibility checks.
 func (en *Service) GetEnrolment(ctx context.Context, actor Actor, campaignID int) (*Enrolment, error) {
 	if err := actor.Validate(); err != nil {
 		return nil, err
@@ -83,6 +86,9 @@ func (en *Service) GetEnrolment(ctx context.Context, actor Actor, campaignID int
 
 	enr, err := en.Store.GetEnrolment(ctx, actor.ID, campaignID)
 	if !errors.Is(err, ErrNotFound) {
+		if enr != nil {
+			enr.computeStatus()
+		}
 		return enr, err
 	}
 
@@ -157,17 +163,51 @@ func (en *Service) Enrol(ctx context.Context, actor Actor, campaignID int) (*Enr
 	return enr, nil
 }
 
-func (en *Service) Ingest(ctx context.Context, actor Actor, query Query, event Event) ([]Enrolment, error) {
-	applicableEnrolments, err := en.ListEnrolments(ctx, actor, nil, query)
+func (en *Service) Ingest(ctx context.Context, event Event) ([]Enrolment, error) {
+	applicableEnrolments, err := en.ListEnrolments(ctx, event.Actor, []string{StatusActive}, event.Query)
 	if err != nil {
 		return nil, err
 	}
 
 	var res []Enrolment
 	for _, enr := range applicableEnrolments {
-		fmt.Println(enr)
+		progressed, err := en.progressEnrolment(ctx, event, &enr)
+		if err != nil {
+			return nil, err
+		} else if progressed {
+			enr.computeStatus()
+			res = append(res, enr)
+		}
 	}
 	return res, nil
+}
+
+func (en *Service) progressEnrolment(ctx context.Context, event Event, enr *Enrolment) (bool, error) {
+	if enr.Campaign.IsUnordered {
+		done := map[int]struct{}{}
+		for _, step := range enr.CompletedSteps {
+			done[step.StepID] = struct{}{}
+		}
+		for i, step := range enr.Campaign.Steps {
+			if _, alreadyDone := done[i]; alreadyDone {
+				continue
+			}
+			if pass, err := en.executeRule(ctx, step, event); err != nil {
+				return false, err
+			} else if pass {
+				enr.CompletedSteps = append(enr.CompletedSteps, StepResult{
+					StepID:   i,
+					ActionID: event.ID,
+					PassedAt: time.Now(),
+				})
+				enr.RemainingSteps = len(enr.Campaign.Steps) - len(enr.CompletedSteps)
+				return true, nil
+			}
+		}
+		return false, nil
+	}
+
+	return false, nil
 }
 
 func (en *Service) prepEnrolment(ctx context.Context, actor Actor, camp Campaign) (*Enrolment, error) {
@@ -186,6 +226,11 @@ func (en *Service) prepEnrolment(ctx context.Context, actor Actor, camp Campaign
 		RemainingSteps: len(camp.Steps),
 		Campaign:       &camp,
 	}, nil
+}
+
+func (en *Service) executeRule(ctx context.Context, rule string, data interface{}) (bool, error) {
+	log.Printf("[INFO] executing rule '%s'", rule)
+	return true, nil
 }
 
 func preparePotentialList(enrolments []Enrolment, campaigns []Campaign) []potentialEnrolment {
