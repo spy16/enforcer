@@ -119,6 +119,7 @@ func (api *API) Ingest(ctx context.Context, completeMulti bool, act actor.Action
 	if err != nil {
 		return nil, err
 	}
+	api.sortApplicable(applicable)
 
 	var res []Enrolment
 	var isAffected bool
@@ -135,6 +136,10 @@ func (api *API) Ingest(ctx context.Context, completeMulti bool, act actor.Action
 		}
 	}
 	return res, completionErr
+}
+
+func (api *API) sortApplicable(applicable []Enrolment) {
+	// TODO: sort based on priority, end_date etc.
 }
 
 func (api *API) prepEnrolment(ctx context.Context, camp campaign.Campaign, ac actor.Actor) (*Enrolment, error) {
