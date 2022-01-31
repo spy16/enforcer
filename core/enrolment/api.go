@@ -14,6 +14,7 @@ import (
 // API provides functions for managing enrolments.
 type API struct {
 	Store        Store
+	RuleEngine   ruleEngine
 	CampaignsAPI campaignsAPI
 }
 
@@ -50,8 +51,8 @@ func (api *API) ListExisting(ctx context.Context, actorID string, status []strin
 	return filterByStatus(existing, status), nil
 }
 
-// ListAll returns all enrolments including existing and eligible. Eligible enrolments
-// are computed based on the campaign query provided and actor data.
+// ListAll returns all enrolments including existing and eligible. Eligible
+// are computed based on the campaign query and actor data provided.
 func (api *API) ListAll(ctx context.Context, ac actor.Actor, campQ campaign.Query) ([]Enrolment, error) {
 	existing, err := api.ListExisting(ctx, ac.ID, nil)
 	if err != nil {
@@ -147,8 +148,17 @@ func (api *API) prepEnrolment(ctx context.Context, camp campaign.Campaign, ac ac
 }
 
 func (api *API) checkEligibility(ctx context.Context, camp campaign.Campaign, ac actor.Actor) error {
-	// TODO: check eligibility.
-	return enforcer.ErrIneligible
+	if camp.Spec.Eligibility == "" {
+		return nil
+	}
+
+	isPass, err := api.RuleEngine.Exec(ctx, camp.Spec.Eligibility, actorMap(ac))
+	if err != nil {
+		return err
+	} else if !isPass {
+		return enforcer.ErrIneligible
+	}
+	return nil
 }
 
 func (api *API) applyCompletion(ctx context.Context, act actor.Action, enr *Enrolment) (bool, error) {
@@ -161,4 +171,17 @@ func (api *API) applyCompletion(ctx context.Context, act actor.Action, enr *Enro
 	// TODO: figure out step completion procedure.
 
 	return false, nil
+}
+
+type ruleEngine interface {
+	Exec(_ context.Context, rule string, data interface{}) (bool, error)
+}
+
+func actorMap(ac actor.Actor) map[string]interface{} {
+	d := map[string]interface{}{}
+	for k, v := range ac.Attribs {
+		d[k] = v
+	}
+	d["actor_id"] = ac.ID
+	return d
 }

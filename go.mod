@@ -3,6 +3,7 @@ module github.com/spy16/enforcer
 go 1.17
 
 require (
+	github.com/antonmedv/expr v1.9.0
 	github.com/go-playground/validator/v10 v10.10.0
 	github.com/stretchr/testify v1.7.0
 )
