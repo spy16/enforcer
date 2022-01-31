@@ -45,18 +45,17 @@ func (api *API) Create(ctx context.Context, camp Campaign) (*Campaign, error) {
 // Update merges the given partial campaign object with the existing campaign and
 // stores. The updated version is returned. Some fields may not undergo update
 // based on current usage status.
-func (api *API) Update(ctx context.Context, partial Campaign) (*Campaign, error) {
-	partial.Name = strings.TrimSpace(partial.Name)
-	if partial.Name == "" {
+func (api *API) Update(ctx context.Context, name string, newSpec Spec) (*Campaign, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
 		return nil, enforcer.ErrInvalid.WithMsgf("name must not be empty")
 	}
 
 	updateFn := func(ctx context.Context, actual *Campaign) error {
-		// TODO: merge actual and partial
-		return nil
+		return actual.merge(newSpec)
 	}
 
-	return api.Store.UpdateCampaign(ctx, partial.Name, updateFn)
+	return api.Store.UpdateCampaign(ctx, name, updateFn)
 }
 
 // Delete deletes a campaign by the identifier.

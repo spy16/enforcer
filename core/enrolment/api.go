@@ -3,7 +3,6 @@ package enrolment
 import (
 	"context"
 	"errors"
-	"log"
 	"time"
 
 	"github.com/spy16/enforcer"
@@ -21,6 +20,10 @@ type API struct {
 type campaignsAPI interface {
 	Get(ctx context.Context, name string) (*campaign.Campaign, error)
 	List(ctx context.Context, q campaign.Query) ([]campaign.Campaign, error)
+}
+
+type ruleEngine interface {
+	Exec(_ context.Context, rule string, data interface{}) (bool, error)
 }
 
 // Get returns an enrolment for campaign and an actor. If actor is not already
@@ -152,7 +155,7 @@ func (api *API) checkEligibility(ctx context.Context, camp campaign.Campaign, ac
 		return nil
 	}
 
-	isPass, err := api.RuleEngine.Exec(ctx, camp.Spec.Eligibility, actorMap(ac))
+	isPass, err := api.RuleEngine.Exec(ctx, camp.Spec.Eligibility, ruleExecEnv(ac, nil))
 	if err != nil {
 		return err
 	} else if !isPass {
@@ -166,22 +169,68 @@ func (api *API) applyCompletion(ctx context.Context, act actor.Action, enr *Enro
 	if err != nil {
 		return false, err
 	}
-	log.Printf("checking completion for '%s'", camp.Name)
+	env := ruleExecEnv(act.Actor, &act)
 
-	// TODO: figure out step completion procedure.
+	if camp.Spec.IsUnordered {
+		done := map[int]struct{}{}
+		for _, step := range enr.CompletedSteps {
+			done[step.StepID] = struct{}{}
+		}
+		for i, step := range camp.Spec.Steps {
+			if _, alreadyDone := done[i]; alreadyDone {
+				continue
+			}
 
-	return false, nil
-}
+			pass, err := api.RuleEngine.Exec(ctx, step, env)
+			if err != nil {
+				return false, err
+			} else if pass {
+				enr.CompletedSteps = append(enr.CompletedSteps, StepResult{
+					StepID:   i,
+					DoneAt:   act.Time,
+					ActionID: act.ID,
+				})
+				enr.RemainingSteps = len(camp.Spec.Steps) - len(enr.CompletedSteps)
+				return true, nil
+			}
+		}
 
-type ruleEngine interface {
-	Exec(_ context.Context, rule string, data interface{}) (bool, error)
-}
-
-func actorMap(ac actor.Actor) map[string]interface{} {
-	d := map[string]interface{}{}
-	for k, v := range ac.Attribs {
-		d[k] = v
+		return false, nil
 	}
-	d["actor_id"] = ac.ID
-	return d
+
+	nextStepID := len(enr.CompletedSteps) - 1
+	if nextStepID >= len(camp.Spec.Steps) {
+		return false, enforcer.ErrInternal.WithMsgf("campaign has lesser steps than enrolment")
+	}
+
+	pass, err := api.RuleEngine.Exec(ctx, camp.Spec.Steps[nextStepID], env)
+	if err != nil || !pass {
+		return false, err
+	}
+
+	enr.CompletedSteps = append(enr.CompletedSteps, StepResult{
+		StepID:   nextStepID,
+		DoneAt:   act.Time,
+		ActionID: act.ID,
+	})
+	enr.RemainingSteps = len(camp.Spec.Steps) - len(enr.CompletedSteps)
+	return true, nil
+}
+
+func ruleExecEnv(ac actor.Actor, act *actor.Action) map[string]interface{} {
+	return map[string]interface{}{
+		"actor": mergeMap(ac.Attribs, map[string]interface{}{"id": ac.ID}),
+		"event": mergeMap(act.Data, map[string]interface{}{"id": act.ID, "time": act.Time}),
+	}
+}
+
+func mergeMap(m1, m2 map[string]interface{}) map[string]interface{} {
+	res := map[string]interface{}{}
+	for k, v := range m1 {
+		res[k] = v
+	}
+	for k, v := range m2 {
+		res[k] = v
+	}
+	return res
 }

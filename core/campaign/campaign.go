@@ -1,6 +1,7 @@
 package campaign
 
 import (
+	"sort"
 	"strings"
 	"time"
 
@@ -10,15 +11,16 @@ import (
 // Campaign represents a group of rules that an actor needs to complete
 // one-by-one.
 type Campaign struct {
-	Name      string    `json:"id"`
-	Tags      []string  `json:"tags,omitempty"`
-	Spec      Spec      `json:"spec"`
-	Enabled   bool      `json:"enabled"`
-	StartAt   time.Time `json:"start_at"`
-	EndAt     time.Time `json:"end_at"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	ActorType string    `json:"actor_type"`
+	Spec          Spec      `json:"spec"`
+	Name          string    `json:"name"`
+	Scopes        []string  `json:"scope"`
+	Enabled       bool      `json:"enabled"`
+	StartAt       time.Time `json:"start_at"`
+	EndAt         time.Time `json:"end_at"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
+	ActorType     string    `json:"actor_type"`
+	CurEnrolments int       `json:"current_enrolments"`
 }
 
 // Spec represents a campaign specification.
@@ -29,7 +31,6 @@ type Spec struct {
 	IsUnordered   bool     `json:"is_unordered"`
 	Eligibility   string   `json:"eligibility,omitempty"`
 	MaxEnrolments int      `json:"max_enrolments,omitempty"`
-	CurEnrolments int      `json:"current_enrolments"`
 }
 
 // IsActive returns true if the campaign is active relative to the given
@@ -39,14 +40,15 @@ func (c Campaign) IsActive(at time.Time) bool {
 		c.StartAt.Before(at) && c.EndAt.After(at)
 }
 
-// HasAllTags returns true if the campaign has all given tags.
-func (c Campaign) HasAllTags(tags []string) bool {
+// HasScope returns true if the campaign has all given scope-tags.
+func (c Campaign) HasScope(scope []string) bool {
 	set := map[string]struct{}{}
-	for _, tag := range c.Tags {
-		set[tag] = struct{}{}
+	for _, scopeTag := range c.Scopes {
+		set[scopeTag] = struct{}{}
 	}
-	for _, tag := range tags {
-		if _, found := set[tag]; !found {
+
+	for _, scopeTag := range scope {
+		if _, found := set[scopeTag]; !found {
 			return false
 		}
 	}
@@ -57,7 +59,7 @@ func (c Campaign) HasAllTags(tags []string) bool {
 // is true, spec is also validated.
 func (c *Campaign) Validate(checkSpec bool) error {
 	c.Name = strings.TrimSpace(c.Name)
-	c.Tags = cleanTags(c.Tags)
+	c.Scopes = cleanScope(c.Scopes)
 	if c.CreatedAt.IsZero() {
 		c.CreatedAt = time.Now()
 		c.UpdatedAt = c.CreatedAt
@@ -79,6 +81,24 @@ func (c *Campaign) Validate(checkSpec bool) error {
 		return c.Spec.validate()
 	}
 	return nil
+}
+
+func (c *Campaign) merge(spec Spec) error {
+	// TODO: merge partial into actual. Return error if non-overridable.
+
+	isUsed := c.IsActive(time.Now()) && c.CurEnrolments > 0
+	if isUsed {
+		activeEnrErr := enforcer.ErrInvalid.WithCausef("%d active enrolments", c.CurEnrolments)
+		if len(spec.Steps) != 0 {
+			return activeEnrErr.WithMsgf("steps cannot be edited")
+		}
+
+		if spec.Eligibility != "" {
+			return activeEnrErr.WithMsgf("eligibility rule cannot be edited")
+		}
+	}
+
+	return c.Validate(true)
 }
 
 func (s *Spec) validate() error {
@@ -106,7 +126,7 @@ func (s *Spec) validate() error {
 	return nil
 }
 
-func cleanTags(tags []string) []string {
+func cleanScope(tags []string) []string {
 	var res []string
 	for _, tag := range tags {
 		tag = strings.TrimSpace(tag)
@@ -114,5 +134,8 @@ func cleanTags(tags []string) []string {
 			res = append(res, tag)
 		}
 	}
+	sort.Slice(tags, func(i, j int) bool {
+		return strings.Compare(tags[i], tags[j]) > 0
+	})
 	return res
 }

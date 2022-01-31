@@ -21,7 +21,7 @@ type UpdateFn func(ctx context.Context, actual *Campaign) error
 
 // Query represents filtering options for listing campaigns.
 // Following criteria must be realised as:
-// 	`Include + (SearchIn AND OnlyActive AND HavingTags)`
+// 	`Include + (SearchIn AND OnlyActive AND HavingScope)`
 type Query struct {
 	// Include campaigns with given names unconditionally (i.e., other
 	// filters do not apply to this).
@@ -35,9 +35,9 @@ type Query struct {
 	// OnlyActive signals to return only active campaigns.
 	OnlyActive bool `json:"only_active,omitempty"`
 
-	// HavingTags returns only those campaigns that have all the
-	// given tags.
-	HavingTags []string `json:"having_tags,omitempty"`
+	// HavingScope returns only those campaigns that have all the
+	// given scope-tags.
+	HavingScope []string `json:"having_scope,omitempty"`
 }
 
 func (q Query) filterCampaigns(arr []Campaign) []Campaign {
@@ -67,6 +67,6 @@ func (q Query) matchQuery(c Campaign) bool {
 		}
 		isMatch = isMatch && found
 	}
-	isMatch = isMatch && (len(q.HavingTags) == 0 || c.HasAllTags(q.HavingTags))
+	isMatch = isMatch && (len(q.HavingScope) == 0 || c.HasScope(q.HavingScope))
 	return isMatch
 }
