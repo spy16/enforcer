@@ -7,8 +7,8 @@ import (
 
 // Store implementation provides storage layer for campaigns.
 type Store interface {
-	GetCampaign(ctx context.Context, name string) (*Campaign, error)
-	ListCampaigns(ctx context.Context) ([]Campaign, error)
+	GetCampaign(ctx context.Context, name string, includeSpec bool) (*Campaign, error)
+	ListCampaigns(ctx context.Context, q Query) ([]Campaign, error)
 	CreateCampaign(ctx context.Context, camp Campaign) error
 	UpdateCampaign(ctx context.Context, name string, updateFn UpdateFn) (*Campaign, error)
 	DeleteCampaign(ctx context.Context, name string) error
