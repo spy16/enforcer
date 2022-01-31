@@ -16,7 +16,7 @@ func (api *API) Get(ctx context.Context, name string) (*Campaign, error) {
 	if name == "" {
 		return nil, enforcer.ErrInvalid.WithMsgf("name must not be empty")
 	}
-	return api.Store.GetCampaign(ctx, name, true)
+	return api.Store.GetCampaign(ctx, name)
 }
 
 // List returns a list of campaigns matching the given search query.

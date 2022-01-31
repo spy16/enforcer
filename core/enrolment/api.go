@@ -133,6 +133,9 @@ func (api *API) Ingest(ctx context.Context, completeMulti bool, act actor.Action
 				break
 			}
 			res = append(res, enr)
+			if !completeMulti {
+				break
+			}
 		}
 	}
 	return res, completionErr
@@ -223,10 +226,13 @@ func (api *API) applyCompletion(ctx context.Context, act actor.Action, enr *Enro
 }
 
 func ruleExecEnv(ac actor.Actor, act *actor.Action) map[string]interface{} {
-	return map[string]interface{}{
-		"actor": mergeMap(ac.Attribs, map[string]interface{}{"id": ac.ID}),
-		"event": mergeMap(act.Data, map[string]interface{}{"id": act.ID, "time": act.Time}),
+	d := map[string]interface{}{}
+	if act != nil {
+		d["event"] = mergeMap(act.Data, map[string]interface{}{"id": act.ID, "time": act.Time})
+		ac = act.Actor
 	}
+	d["actor"] = mergeMap(ac.Attribs, map[string]interface{}{"id": ac.ID})
+	return d
 }
 
 func mergeMap(m1, m2 map[string]interface{}) map[string]interface{} {
