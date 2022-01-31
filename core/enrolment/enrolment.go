@@ -20,7 +20,6 @@ var val = validator.New()
 // also contains the progress of the actor in the campaign.
 type Enrolment struct {
 	ActorID        string       `json:"actor_id" validate:"required"`
-	ActorType      string       `json:"actor_type" validate:"required,alpha,uppercase"`
 	CampaignID     string       `json:"campaign_id" validate:"required,alphanum"`
 	Status         string       `json:"status" validate:"alpha,uppercase"`
 	StartedAt      time.Time    `json:"started_at,omitempty"`
@@ -37,7 +36,7 @@ type StepResult struct {
 	ActionID string    `json:"action_id" validate:"required"`
 }
 
-func (enr *Enrolment) computeStatus() {
+func (enr *Enrolment) setStatus() {
 	if enr.StartedAt.IsZero() {
 		enr.Status = StatusEligible
 	} else if enr.RemainingSteps == 0 {
@@ -51,9 +50,8 @@ func (enr *Enrolment) computeStatus() {
 
 func (enr *Enrolment) validate() error {
 	enr.ActorID = strings.TrimSpace(enr.ActorID)
-	enr.ActorType = strings.TrimSpace(enr.ActorType)
 	enr.CampaignID = strings.TrimSpace(enr.CampaignID)
-	enr.computeStatus()
+	enr.setStatus()
 
 	for _, step := range enr.CompletedSteps {
 		step.ActionID = strings.TrimSpace(step.ActionID)

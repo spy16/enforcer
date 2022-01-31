@@ -5,7 +5,7 @@ import "context"
 // Store implementation provides storage layer for enrolments.
 type Store interface {
 	GetEnrolment(ctx context.Context, actorID, campaignID string) (*Enrolment, error)
-	ListEnrolments(ctx context.Context, actorID string, onlyActive bool) ([]Enrolment, error)
+	ListEnrolments(ctx context.Context, actorID string) ([]Enrolment, error)
 	CreateEnrolment(ctx context.Context, enrolment Enrolment) error
 	UpdateEnrolment(ctx context.Context, actorID string, campaignID int, updateFn UpdateFn) (*Enrolment, error)
 }

@@ -18,6 +18,7 @@ type Campaign struct {
 	EndAt     time.Time `json:"end_at"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+	ActorType string    `json:"actor_type"`
 }
 
 // Spec represents a campaign specification.

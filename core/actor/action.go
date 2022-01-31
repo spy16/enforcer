@@ -20,10 +20,9 @@ func (act *Action) Validate() error {
 	if act.Time.IsZero() {
 		act.Time = time.Now()
 	}
-
 	return act.Actor.Validate()
 }
 
 func (act Action) String() string {
-	return fmt.Sprintf("Action{%s}", act.ID)
+	return fmt.Sprintf("Action{id='%s'}", act.ID)
 }

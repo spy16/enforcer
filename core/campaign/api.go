@@ -28,9 +28,8 @@ func (api *API) List(ctx context.Context, q Query) ([]Campaign, error) {
 	return q.filterCampaigns(res), nil
 }
 
-// Create validates and inserts a new campaign into the storage.
-// Campaign ID is assigned automatically and the stored version of the
-// campaign is returned.
+// Create validates and inserts a new campaign into the storage. Campaign ID is
+// assigned automatically and the stored version of the campaign is returned.
 func (api *API) Create(ctx context.Context, camp Campaign) (*Campaign, error) {
 	if err := camp.Validate(true); err != nil {
 		return nil, err
@@ -43,9 +42,9 @@ func (api *API) Create(ctx context.Context, camp Campaign) (*Campaign, error) {
 	return &camp, nil
 }
 
-// Update merges the given partial campaign object with the existing
-// campaign and stores. The updated version is returned. Some fields may not
-// undergo update based on current usage status.
+// Update merges the given partial campaign object with the existing campaign and
+// stores. The updated version is returned. Some fields may not undergo update
+// based on current usage status.
 func (api *API) Update(ctx context.Context, partial Campaign) (*Campaign, error) {
 	partial.Name = strings.TrimSpace(partial.Name)
 	if partial.Name == "" {

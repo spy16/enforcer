@@ -13,10 +13,11 @@ func TestAction_Validate(t *testing.T) {
 	act.ID = "order-1234"
 	assert.Error(t, act.Validate())
 
-	act.Actor = Actor{ID: "1234", Type: "USER"}
+	act.Actor = Actor{ID: "1234"}
+	assert.NoError(t, act.Validate())
 }
 
 func TestAction_String(t *testing.T) {
 	actor := Action{ID: "1234"}
-	assert.Equal(t, "Action{1234}", actor.String())
+	assert.Equal(t, "Action{id='1234'}", actor.String())
 }

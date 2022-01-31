@@ -62,7 +62,7 @@ func TestEnrolment_computeStatus(t *testing.T) {
 
 	for _, tt := range table {
 		t.Run(tt.title, func(t *testing.T) {
-			tt.enr.computeStatus()
+			tt.enr.setStatus()
 			assert.Equal(t, tt.wantStatus, tt.enr.Status)
 		})
 	}
