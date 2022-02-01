@@ -173,5 +173,5 @@ func TestCampaign_Validate(t *testing.T) {
 }
 
 func TestCampaign_merge(t *testing.T) {
-	// TODO: add tests once merge() is finished.
+	// TODO: add tests once apply() is finished.
 }

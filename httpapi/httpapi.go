@@ -16,6 +16,7 @@ type campaignsAPI interface {
 	Get(ctx context.Context, name string) (*campaign.Campaign, error)
 	List(ctx context.Context, q campaign.Query) ([]campaign.Campaign, error)
 	Create(ctx context.Context, c campaign.Campaign) (*campaign.Campaign, error)
+	Update(ctx context.Context, name string, updates campaign.Updates) (*campaign.Campaign, error)
 	Delete(ctx context.Context, name string) error
 }
 
@@ -34,7 +35,7 @@ func Serve(addr string, campsAPI campaignsAPI, enrsAPI enrolmentsAPI) error {
 		r.Get("/", listCampaigns(campsAPI))
 		r.Post("/", createCampaign(campsAPI))
 		r.Get("/{id}", getCampaign(campsAPI))
-		r.Patch("/{id}", updateCampaign(campsAPI))
+		r.Put("/{id}", updateCampaign(campsAPI))
 		r.Delete("/{id}", deleteCampaign(campsAPI))
 	})
 

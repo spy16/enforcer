@@ -32,6 +32,15 @@ type Spec struct {
 	MaxEnrolments int      `json:"max_enrolments,omitempty"`
 }
 
+// Updates represents updates that can be applied on a campaign.
+type Updates struct {
+	StartAt *time.Time `json:"start_at,omitempty"`
+	EndAt   *time.Time `json:"end_at,omitempty"`
+	Scopes  []string   `json:"scopes,omitempty"`
+	Enabled *bool      `json:"enabled,omitempty"`
+	Spec    *Spec      `json:"spec,omitempty"`
+}
+
 // IsActive returns true if the campaign is active relative to the given
 // timestamp.
 func (c Campaign) IsActive(at time.Time) bool {
@@ -82,21 +91,94 @@ func (c *Campaign) Validate(checkSpec bool) error {
 	return nil
 }
 
-func (c *Campaign) merge(spec Spec) error {
-	// TODO: merge partial into actual. Return error if non-overridable.
-
+func (c *Campaign) apply(updates Updates) error {
 	isUsed := c.IsActive(time.Now()) && c.CurEnrolments > 0
-	if isUsed {
-		activeEnrErr := enforcer.ErrInvalid.WithCausef("%d active enrolments", c.CurEnrolments)
-		if len(spec.Steps) != 0 {
-			return activeEnrErr.WithMsgf("steps cannot be edited")
-		}
+	activeEnrErr := enforcer.ErrInvalid.WithCausef("%d active enrolments", c.CurEnrolments)
 
-		if spec.Eligibility != "" {
-			return activeEnrErr.WithMsgf("eligibility rule cannot be edited")
+	if updates.Enabled != nil {
+		c.Enabled = *updates.Enabled
+	}
+	if updates.StartAt != nil {
+		if isUsed {
+			return activeEnrErr.WithMsgf("start-date cannot be modified")
 		}
+		c.StartAt = *updates.StartAt
 	}
 
+	if updates.EndAt != nil {
+		if isUsed {
+			return activeEnrErr.WithMsgf("start-date cannot be modified")
+		}
+		c.EndAt = *updates.EndAt
+	}
+
+	if len(updates.Scopes) != 0 {
+		set := map[string]bool{}
+		for _, scope := range updates.Scopes {
+			scope = strings.TrimSpace(scope)
+			if strings.HasPrefix(scope, "-") {
+				scope = scope[1:]
+				set[scope] = false
+			} else {
+				if strings.HasPrefix(scope, "+") {
+					scope = scope[1:]
+				}
+				set[scope] = true
+			}
+		}
+
+		var scopes []string
+		for _, scope := range c.Scopes {
+			isRetain, found := set[scope]
+			if !found || isRetain {
+				scopes = append(scopes, scope)
+			}
+		}
+
+		for scope, add := range set {
+			if !add {
+				continue
+			}
+			scopes = append(scopes, scope)
+		}
+		c.Scopes = scopes
+	}
+
+	// --- update spec of the campaign ---
+	if updates.Spec != nil {
+		spec := updates.Spec
+
+		c.Spec.IsUnordered = spec.IsUnordered
+		c.Spec.Priority = spec.Priority
+
+		if spec.Eligibility != "" {
+			if isUsed {
+				return activeEnrErr.WithMsgf("eligibility rule cannot be edited")
+			}
+			c.Spec.Eligibility = spec.Eligibility
+		}
+
+		if len(spec.Steps) != 0 {
+			if isUsed {
+				return activeEnrErr.WithMsgf("steps cannot be edited")
+			}
+			c.Spec.Steps = spec.Steps
+		}
+
+		if spec.Deadline != 0 {
+			if isUsed {
+				return activeEnrErr.WithMsgf("deadline cannot be edited")
+			}
+			c.Spec.Deadline = spec.Deadline
+		}
+
+		if spec.MaxEnrolments > 0 {
+			if spec.MaxEnrolments < c.CurEnrolments {
+				return activeEnrErr.WithMsgf("max-enrolments cannot be updated to lesser value")
+			}
+			c.Spec.MaxEnrolments = spec.MaxEnrolments
+		}
+	}
 	return c.Validate(true)
 }
 
@@ -126,11 +208,15 @@ func (s *Spec) validate() error {
 }
 
 func cleanScope(tags []string) []string {
+	set := map[string]struct{}{}
 	var res []string
 	for _, tag := range tags {
 		tag = strings.TrimSpace(tag)
 		if tag != "" {
-			res = append(res, tag)
+			if _, found := set[tag]; !found {
+				res = append(res, tag)
+				set[tag] = struct{}{}
+			}
 		}
 	}
 	sort.Slice(tags, func(i, j int) bool {

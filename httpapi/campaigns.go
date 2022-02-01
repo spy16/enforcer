@@ -83,7 +83,28 @@ func createCampaign(api campaignsAPI) http.HandlerFunc {
 
 func updateCampaign(api campaignsAPI) http.HandlerFunc {
 	return func(wr http.ResponseWriter, req *http.Request) {
-		// TODO: implement this.
+		campID := chi.URLParam(req, "id")
+
+		var upd campaign.Updates
+		if err := json.NewDecoder(req.Body).Decode(&upd); err != nil {
+			writeOut(wr, req, http.StatusBadRequest,
+				enforcer.ErrInvalid.WithCausef("failed to parse body: %v", err.Error()))
+			return
+		}
+
+		c, err := api.Update(req.Context(), campID, upd)
+		if err != nil {
+			if errors.Is(err, enforcer.ErrNotFound) {
+				writeOut(wr, req, http.StatusNotFound,
+					enforcer.ErrNotFound.WithCausef(err.Error()))
+			} else {
+				writeOut(wr, req, http.StatusInternalServerError,
+					enforcer.ErrInternal.WithCausef(err.Error()))
+			}
+			return
+		}
+
+		writeOut(wr, req, http.StatusOK, c)
 	}
 }
 
