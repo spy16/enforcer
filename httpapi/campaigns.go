@@ -36,10 +36,10 @@ func listCampaigns(api campaignsAPI) http.HandlerFunc {
 	return func(wr http.ResponseWriter, req *http.Request) {
 		p := req.URL.Query()
 		q := campaign.Query{
-			Include:     strings.Split(p.Get("include"), ","),
-			SearchIn:    strings.Split(p.Get("search_in"), ","),
 			OnlyActive:  p.Get("only_active") == "true",
-			HavingScope: strings.Split(p.Get("scope"), ","),
+			Include:     cleanSplit(p.Get("include"), ","),
+			SearchIn:    cleanSplit(p.Get("search_in"), ","),
+			HavingScope: cleanSplit(p.Get("scope"), ","),
 		}
 
 		camps, err := api.List(req.Context(), q)
@@ -105,4 +105,15 @@ func deleteCampaign(api campaignsAPI) http.HandlerFunc {
 
 		writeOut(wr, req, http.StatusNoContent)
 	}
+}
+
+func cleanSplit(s string, sep string) []string {
+	var res []string
+	for _, item := range strings.Split(s, sep) {
+		item = strings.TrimSpace(item)
+		if item != "" {
+			res = append(res, item)
+		}
+	}
+	return res
 }
