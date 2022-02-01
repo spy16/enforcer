@@ -4,6 +4,7 @@ go 1.17
 
 require (
 	github.com/antonmedv/expr v1.9.0
+	github.com/go-chi/chi/v5 v5.0.7
 	github.com/go-playground/validator/v10 v10.10.0
 	github.com/stretchr/testify v1.7.0
 )
