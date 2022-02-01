@@ -4,14 +4,16 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/spy16/enforcer"
 )
 
 // Action represents an activity/action executed by an actor.
 type Action struct {
 	ID    string                 `json:"id"`
 	Time  time.Time              `json:"time"`
-	Actor Actor                  `json:"actor"`
 	Data  map[string]interface{} `json:"data"`
+	Actor Actor                  `json:"actor"`
 }
 
 // Validate performs validation of given action.
@@ -20,6 +22,11 @@ func (act *Action) Validate() error {
 	if act.Time.IsZero() {
 		act.Time = time.Now()
 	}
+
+	if act.ID == "" {
+		return enforcer.ErrInvalid.WithMsgf("empty action_id")
+	}
+
 	return act.Actor.Validate()
 }
 

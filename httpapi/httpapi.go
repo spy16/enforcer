@@ -9,8 +9,12 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
+	"github.com/spy16/enforcer/core/actor"
 	"github.com/spy16/enforcer/core/campaign"
+	"github.com/spy16/enforcer/core/enrolment"
 )
+
+type getActor func(ctx context.Context, actorID string) (*actor.Actor, error)
 
 type campaignsAPI interface {
 	Get(ctx context.Context, name string) (*campaign.Campaign, error)
@@ -21,10 +25,15 @@ type campaignsAPI interface {
 }
 
 type enrolmentsAPI interface {
+	Get(ctx context.Context, campName string, ac actor.Actor) (*enrolment.Enrolment, error)
+	ListAll(ctx context.Context, ac actor.Actor, q campaign.Query) ([]enrolment.Enrolment, error)
+	Enrol(ctx context.Context, campaignName string, ac actor.Actor) (*enrolment.Enrolment, bool, error)
+	Ingest(ctx context.Context, completeMulti bool, act actor.Action) ([]enrolment.Enrolment, error)
 }
 
 // Serve starts an REST api server on given bind address.
-func Serve(addr string, campsAPI campaignsAPI, enrsAPI enrolmentsAPI) error {
+func Serve(addr string, campsAPI campaignsAPI, enrsAPI enrolmentsAPI,
+	getActor getActor) error {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
@@ -40,9 +49,10 @@ func Serve(addr string, campsAPI campaignsAPI, enrsAPI enrolmentsAPI) error {
 	})
 
 	r.Route("/v1/actors/{actor_id}", func(r chi.Router) {
-		r.Get("/enrolments", listEnrolments(enrsAPI))
-		r.Post("/enrol", enrol(enrsAPI))
-		r.Post("/ingest", ingest(enrsAPI))
+		r.Get("/enrolments/{campaign_name}", getEnrolment(enrsAPI, getActor))
+		r.Get("/enrolments", listEnrolments(enrsAPI, getActor))
+		r.Post("/enrol", enrol(enrsAPI, getActor))
+		r.Post("/ingest", ingest(enrsAPI, getActor))
 	})
 
 	return http.ListenAndServe(addr, r)

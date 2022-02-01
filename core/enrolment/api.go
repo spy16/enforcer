@@ -62,13 +62,26 @@ func (api *API) ListAll(ctx context.Context, ac actor.Actor, campQ campaign.Quer
 		return nil, err
 	}
 
+	campQ.OnlyActive = true
+	campQ.Include = collectCampaignIDs(existing)
 	camps, err := api.CampaignsAPI.List(ctx, campQ)
 	if err != nil {
 		return nil, err
 	}
 
-	res := append([]Enrolment{}, existing...)
+	var res []Enrolment
+	alreadyEnrolled := map[string]struct{}{}
+	for _, enrolment := range existing {
+		enrolment.setStatus()
+		alreadyEnrolled[enrolment.CampaignID] = struct{}{}
+		res = append(res, enrolment)
+	}
+
 	for _, camp := range camps {
+		if _, exists := alreadyEnrolled[camp.Name]; exists {
+			continue
+		}
+
 		enr, err := api.prepEnrolment(ctx, camp, ac)
 		if err != nil {
 			if errors.Is(err, enforcer.ErrIneligible) {
@@ -115,6 +128,10 @@ func (api *API) Enrol(ctx context.Context, campaignName string, ac actor.Actor) 
 // enrolments that progressed. If completeMulti is false, only one enrolment will
 // be progressed.
 func (api *API) Ingest(ctx context.Context, completeMulti bool, act actor.Action) ([]Enrolment, error) {
+	if err := act.Validate(); err != nil {
+		return nil, err
+	}
+
 	applicable, err := api.ListExisting(ctx, act.Actor.ID, []string{StatusActive})
 	if err != nil {
 		return nil, err
@@ -206,7 +223,7 @@ func (api *API) applyCompletion(ctx context.Context, act actor.Action, enr *Enro
 		return false, nil
 	}
 
-	nextStepID := len(enr.CompletedSteps) - 1
+	nextStepID := len(enr.CompletedSteps)
 	if nextStepID >= len(camp.Spec.Steps) {
 		return false, enforcer.ErrInternal.WithMsgf("campaign has lesser steps than enrolment")
 	}
@@ -242,6 +259,14 @@ func mergeMap(m1, m2 map[string]interface{}) map[string]interface{} {
 	}
 	for k, v := range m2 {
 		res[k] = v
+	}
+	return res
+}
+
+func collectCampaignIDs(existing []Enrolment) []string {
+	var res []string
+	for _, enrolment := range existing {
+		res = append(res, enrolment.CampaignID)
 	}
 	return res
 }
