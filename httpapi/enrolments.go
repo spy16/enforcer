@@ -8,8 +8,6 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/spy16/enforcer"
-	"github.com/spy16/enforcer/core/actor"
-	"github.com/spy16/enforcer/core/campaign"
 )
 
 func getEnrolment(api enrolmentsAPI, getActor getActor) http.HandlerFunc {
@@ -23,7 +21,7 @@ func getEnrolment(api enrolmentsAPI, getActor getActor) http.HandlerFunc {
 		}
 
 		campName := chi.URLParam(req, "campaign_name")
-		enr, err := api.Get(req.Context(), campName, *ac)
+		enr, err := api.GetEnrolment(req.Context(), campName, *ac)
 		if err != nil {
 			if errors.Is(err, enforcer.ErrNotFound) {
 				writeOut(wr, req, http.StatusNotFound,
@@ -50,14 +48,14 @@ func listEnrolments(api enrolmentsAPI, getActor getActor) http.HandlerFunc {
 		}
 
 		p := req.URL.Query()
-		q := campaign.Query{
+		q := enforcer.Query{
 			OnlyActive:  p.Get("only_active") == "true",
 			Include:     cleanSplit(p.Get("include"), ","),
 			SearchIn:    cleanSplit(p.Get("search_in"), ","),
 			HavingScope: cleanSplit(p.Get("scope"), ","),
 		}
 
-		enrolmentList, err := api.ListAll(req.Context(), *ac, q)
+		enrolmentList, err := api.ListAllEnrolments(req.Context(), *ac, q)
 		if err != nil {
 			writeOut(wr, req, http.StatusInternalServerError,
 				enforcer.ErrInternal.WithCausef(err.Error()))
@@ -113,8 +111,8 @@ func enrol(api enrolmentsAPI, getActor getActor) http.HandlerFunc {
 func ingest(api enrolmentsAPI, getActor getActor) http.HandlerFunc {
 	return func(wr http.ResponseWriter, req *http.Request) {
 		var body struct {
-			Multi  bool         `json:"multi"`
-			Action actor.Action `json:"action"`
+			Multi  bool            `json:"multi"`
+			Action enforcer.Action `json:"action"`
 		}
 		if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
 			writeOut(wr, req, http.StatusBadRequest,

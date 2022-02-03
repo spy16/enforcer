@@ -1,6 +1,4 @@
-package enrolment
-
-import "github.com/spy16/enforcer/core/actor"
+package enforcer
 
 func contains(arr []string, item string) bool {
 	for _, s := range arr {
@@ -26,7 +24,7 @@ func filterByStatus(arr []Enrolment, status []string) []Enrolment {
 	return res
 }
 
-func ruleExecEnv(ac actor.Actor, act *actor.Action) map[string]interface{} {
+func ruleExecEnv(ac Actor, act *Action) map[string]interface{} {
 	d := map[string]interface{}{}
 	if act != nil {
 		d["event"] = mergeMap(act.Data, map[string]interface{}{"id": act.ID, "time": act.Time})

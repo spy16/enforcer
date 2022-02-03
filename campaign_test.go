@@ -1,4 +1,4 @@
-package campaign
+package enforcer
 
 import (
 	"errors"
@@ -6,8 +6,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/spy16/enforcer"
 )
 
 func TestCampaign_IsActive(t *testing.T) {
@@ -99,7 +97,7 @@ func TestCampaign_Validate(t *testing.T) {
 				EndAt:   now.AddDate(0, 0, 3),
 				Scopes:  []string{"", "foo:bar"},
 			},
-			wantErr: enforcer.ErrInvalid,
+			wantErr: ErrInvalid,
 		},
 		{
 			title: "EmptyStep",
@@ -110,7 +108,7 @@ func TestCampaign_Validate(t *testing.T) {
 				EndAt:   now.AddDate(0, 0, 3),
 				Steps:   []string{"       "},
 			},
-			wantErr: enforcer.ErrInvalid,
+			wantErr: ErrInvalid,
 		},
 		{
 			title: "InvalidDeadline",
@@ -122,7 +120,7 @@ func TestCampaign_Validate(t *testing.T) {
 				Eligibility: "not user.blocked",
 				Deadline:    -10,
 			},
-			wantErr: enforcer.ErrInvalid,
+			wantErr: ErrInvalid,
 		},
 		{
 			title: "InvalidPriority",
@@ -134,7 +132,7 @@ func TestCampaign_Validate(t *testing.T) {
 				Eligibility: "not user.blocked",
 				Priority:    100000,
 			},
-			wantErr: enforcer.ErrInvalid,
+			wantErr: ErrInvalid,
 		},
 		{
 			title: "Valid",

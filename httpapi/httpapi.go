@@ -9,31 +9,28 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
-	"github.com/spy16/enforcer/core/actor"
-	"github.com/spy16/enforcer/core/campaign"
-	"github.com/spy16/enforcer/core/enrolment"
+	"github.com/spy16/enforcer"
 )
 
-type getActor func(ctx context.Context, actorID string) (*actor.Actor, error)
+type getActor func(ctx context.Context, actorID string) (*enforcer.Actor, error)
 
 type campaignsAPI interface {
-	Get(ctx context.Context, name string) (*campaign.Campaign, error)
-	List(ctx context.Context, q campaign.Query) ([]campaign.Campaign, error)
-	Create(ctx context.Context, c campaign.Campaign) (*campaign.Campaign, error)
-	Update(ctx context.Context, name string, updates campaign.Updates) (*campaign.Campaign, error)
-	Delete(ctx context.Context, name string) error
+	GetCampaign(ctx context.Context, name string) (*enforcer.Campaign, error)
+	ListCampaigns(ctx context.Context, q enforcer.Query) ([]enforcer.Campaign, error)
+	CreateCampaign(ctx context.Context, c enforcer.Campaign) (*enforcer.Campaign, error)
+	UpdateCampaign(ctx context.Context, name string, updates enforcer.Updates) (*enforcer.Campaign, error)
+	DeleteCampaign(ctx context.Context, name string) error
 }
 
 type enrolmentsAPI interface {
-	Get(ctx context.Context, campName string, ac actor.Actor) (*enrolment.Enrolment, error)
-	ListAll(ctx context.Context, ac actor.Actor, q campaign.Query) ([]enrolment.Enrolment, error)
-	Enrol(ctx context.Context, campaignName string, ac actor.Actor) (*enrolment.Enrolment, bool, error)
-	Ingest(ctx context.Context, completeMulti bool, act actor.Action) ([]enrolment.Enrolment, error)
+	GetEnrolment(ctx context.Context, campName string, ac enforcer.Actor) (*enforcer.Enrolment, error)
+	ListAllEnrolments(ctx context.Context, ac enforcer.Actor, q enforcer.Query) ([]enforcer.Enrolment, error)
+	Enrol(ctx context.Context, campaignName string, ac enforcer.Actor) (*enforcer.Enrolment, bool, error)
+	Ingest(ctx context.Context, completeMulti bool, act enforcer.Action) ([]enforcer.Enrolment, error)
 }
 
 // Serve starts an REST api server on given bind address.
-func Serve(addr string, campsAPI campaignsAPI, enrsAPI enrolmentsAPI,
-	getActor getActor) error {
+func Serve(addr string, enforcerAPI *enforcer.API, getActor getActor) error {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
@@ -41,18 +38,18 @@ func Serve(addr string, campsAPI campaignsAPI, enrsAPI enrolmentsAPI,
 
 	r.Get("/ping", pingHandler())
 	r.Route("/v1/campaigns", func(r chi.Router) {
-		r.Get("/", listCampaigns(campsAPI))
-		r.Post("/", createCampaign(campsAPI))
-		r.Get("/{id}", getCampaign(campsAPI))
-		r.Put("/{id}", updateCampaign(campsAPI))
-		r.Delete("/{id}", deleteCampaign(campsAPI))
+		r.Get("/", listCampaigns(enforcerAPI))
+		r.Post("/", createCampaign(enforcerAPI))
+		r.Get("/{id}", getCampaign(enforcerAPI))
+		r.Put("/{id}", updateCampaign(enforcerAPI))
+		r.Delete("/{id}", deleteCampaign(enforcerAPI))
 	})
 
 	r.Route("/v1/actors/{actor_id}", func(r chi.Router) {
-		r.Get("/enrolments/{campaign_name}", getEnrolment(enrsAPI, getActor))
-		r.Get("/enrolments", listEnrolments(enrsAPI, getActor))
-		r.Post("/enrol", enrol(enrsAPI, getActor))
-		r.Post("/ingest", ingest(enrsAPI, getActor))
+		r.Get("/enrolments/{campaign_name}", getEnrolment(enforcerAPI, getActor))
+		r.Get("/enrolments", listEnrolments(enforcerAPI, getActor))
+		r.Post("/enrol", enrol(enforcerAPI, getActor))
+		r.Post("/ingest", ingest(enforcerAPI, getActor))
 	})
 
 	return http.ListenAndServe(addr, r)

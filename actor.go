@@ -1,12 +1,27 @@
-package actor
+package enforcer
 
 import (
 	"fmt"
 	"strings"
 	"time"
-
-	"github.com/spy16/enforcer"
 )
+
+// Actor represents some entity performing an action.
+type Actor struct {
+	ID      string                 `json:"id"`
+	Attribs map[string]interface{} `json:"attribs"`
+}
+
+// Validate validates the actor object. ID and Type are mandatory.
+func (a *Actor) Validate() error {
+	a.ID = strings.TrimSpace(a.ID)
+	if a.ID == "" {
+		return ErrInvalid.WithMsgf("empty actor_id")
+	}
+	return nil
+}
+
+func (a Actor) String() string { return fmt.Sprintf("Actor{id='%s'}", a.ID) }
 
 // Action represents an activity/action executed by an actor.
 type Action struct {
@@ -24,7 +39,7 @@ func (act *Action) Validate() error {
 	}
 
 	if act.ID == "" {
-		return enforcer.ErrInvalid.WithMsgf("empty action_id")
+		return ErrInvalid.WithMsgf("empty action_id")
 	}
 
 	return act.Actor.Validate()

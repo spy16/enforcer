@@ -1,11 +1,9 @@
-package campaign
+package enforcer
 
 import (
 	"sort"
 	"strings"
 	"time"
-
-	"github.com/spy16/enforcer"
 )
 
 // Campaign represents a group of rules that an actor needs to complete
@@ -77,34 +75,34 @@ func (c *Campaign) Validate() error {
 	}
 
 	if c.Name == "" {
-		return enforcer.ErrInvalid.WithMsgf("a unique name must be set")
+		return ErrInvalid.WithMsgf("a unique name must be set")
 	}
 
 	if c.StartAt.IsZero() {
-		return enforcer.ErrInvalid.WithMsgf("start_at must be set")
+		return ErrInvalid.WithMsgf("start_at must be set")
 	}
 
 	if c.EndAt.IsZero() {
-		return enforcer.ErrInvalid.WithMsgf("end_at must be set")
+		return ErrInvalid.WithMsgf("end_at must be set")
 	}
 
 	if c.Eligibility == "" && len(c.Steps) == 0 {
-		return enforcer.ErrInvalid.WithMsgf("at-least eligibility must be specified")
+		return ErrInvalid.WithMsgf("at-least eligibility must be specified")
 	}
 
 	for i := range c.Steps {
 		c.Steps[i] = strings.TrimSpace(c.Steps[i])
 		if c.Steps[i] == "" {
-			return enforcer.ErrInvalid.WithMsgf("step rule %d must not be empty", i)
+			return ErrInvalid.WithMsgf("step rule %d must not be empty", i)
 		}
 	}
 
 	if c.Deadline < 0 {
-		return enforcer.ErrInvalid.WithMsgf("deadline must be 0 or positive")
+		return ErrInvalid.WithMsgf("deadline must be 0 or positive")
 	}
 
 	if c.Priority < 0 || c.Priority > 100 {
-		return enforcer.ErrInvalid.WithMsgf("priority must be in range [0, 100]")
+		return ErrInvalid.WithMsgf("priority must be in range [0, 100]")
 	}
 
 	return nil
@@ -112,7 +110,7 @@ func (c *Campaign) Validate() error {
 
 func (c *Campaign) apply(updates Updates) error {
 	isUsed := c.IsActive(time.Now()) && c.CurEnrolments > 0
-	activeEnrErr := enforcer.ErrInvalid.WithCausef("%d active enrolments", c.CurEnrolments)
+	activeEnrErr := ErrInvalid.WithCausef("%d active enrolments", c.CurEnrolments)
 
 	if updates.Enabled != nil {
 		c.Enabled = *updates.Enabled

@@ -1,4 +1,4 @@
-package enrolment
+package enforcer
 
 import (
 	"strings"

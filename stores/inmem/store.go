@@ -5,20 +5,17 @@ import (
 	"sync"
 
 	"github.com/spy16/enforcer"
-	"github.com/spy16/enforcer/core/campaign"
-	"github.com/spy16/enforcer/core/enrolment"
 )
 
-var _ campaign.Store = (*Store)(nil)
-var _ enrolment.Store = (*Store)(nil)
+var _ enforcer.Store = (*Store)(nil)
 
 type Store struct {
 	mu         sync.RWMutex
-	campaigns  map[string]campaign.Campaign
-	enrolments map[string]map[string]enrolment.Enrolment
+	campaigns  map[string]enforcer.Campaign
+	enrolments map[string]map[string]enforcer.Enrolment
 }
 
-func (mem *Store) GetCampaign(ctx context.Context, name string) (*campaign.Campaign, error) {
+func (mem *Store) GetCampaign(ctx context.Context, name string) (*enforcer.Campaign, error) {
 	mem.mu.RLock()
 	defer mem.mu.RUnlock()
 
@@ -29,11 +26,11 @@ func (mem *Store) GetCampaign(ctx context.Context, name string) (*campaign.Campa
 	return &c, nil
 }
 
-func (mem *Store) ListCampaigns(ctx context.Context, q campaign.Query) ([]campaign.Campaign, error) {
+func (mem *Store) ListCampaigns(ctx context.Context, q enforcer.Query) ([]enforcer.Campaign, error) {
 	mem.mu.RLock()
 	defer mem.mu.RUnlock()
 
-	var res []campaign.Campaign
+	var res []enforcer.Campaign
 	for _, c := range mem.campaigns {
 		res = append(res, c)
 	}
@@ -41,19 +38,19 @@ func (mem *Store) ListCampaigns(ctx context.Context, q campaign.Query) ([]campai
 	return res, nil
 }
 
-func (mem *Store) CreateCampaign(ctx context.Context, c campaign.Campaign) error {
+func (mem *Store) CreateCampaign(ctx context.Context, c enforcer.Campaign) error {
 	mem.mu.Lock()
 	defer mem.mu.Unlock()
 
 	if mem.campaigns == nil {
-		mem.campaigns = map[string]campaign.Campaign{}
+		mem.campaigns = map[string]enforcer.Campaign{}
 	}
 	mem.campaigns[c.Name] = c
 
 	return nil
 }
 
-func (mem *Store) UpdateCampaign(ctx context.Context, name string, updateFn campaign.UpdateFn) (*campaign.Campaign, error) {
+func (mem *Store) UpdateCampaign(ctx context.Context, name string, updateFn enforcer.UpdateFn) (*enforcer.Campaign, error) {
 	mem.mu.Lock()
 	defer mem.mu.Unlock()
 
@@ -82,7 +79,7 @@ func (mem *Store) DeleteCampaign(ctx context.Context, campaignID string) error {
 	return nil
 }
 
-func (mem *Store) GetEnrolment(ctx context.Context, actorID, campaignID string) (*enrolment.Enrolment, error) {
+func (mem *Store) GetEnrolment(ctx context.Context, actorID, campaignID string) (*enforcer.Enrolment, error) {
 	mem.mu.RLock()
 	defer mem.mu.RUnlock()
 
@@ -94,28 +91,28 @@ func (mem *Store) GetEnrolment(ctx context.Context, actorID, campaignID string) 
 	return &e, nil
 }
 
-func (mem *Store) ListEnrolments(ctx context.Context, actorID string) ([]enrolment.Enrolment, error) {
+func (mem *Store) ListEnrolments(ctx context.Context, actorID string) ([]enforcer.Enrolment, error) {
 	mem.mu.RLock()
 	defer mem.mu.RUnlock()
 
-	var res []enrolment.Enrolment
+	var res []enforcer.Enrolment
 	for _, enr := range mem.enrolments[actorID] {
 		res = append(res, enr)
 	}
 	return res, nil
 }
 
-func (mem *Store) UpsertEnrolment(ctx context.Context, enr enrolment.Enrolment) error {
+func (mem *Store) UpsertEnrolment(ctx context.Context, enr enforcer.Enrolment) error {
 	mem.mu.Lock()
 	defer mem.mu.Unlock()
 
 	_, found := mem.enrolments[enr.ActorID][enr.CampaignID]
 	if !found {
 		if mem.enrolments == nil {
-			mem.enrolments = map[string]map[string]enrolment.Enrolment{}
+			mem.enrolments = map[string]map[string]enforcer.Enrolment{}
 		}
 		if _, found := mem.enrolments[enr.ActorID]; !found {
-			mem.enrolments[enr.ActorID] = map[string]enrolment.Enrolment{}
+			mem.enrolments[enr.ActorID] = map[string]enforcer.Enrolment{}
 		}
 
 		camp := mem.campaigns[enr.CampaignID]

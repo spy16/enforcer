@@ -9,14 +9,13 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/spy16/enforcer"
-	"github.com/spy16/enforcer/core/campaign"
 )
 
 func getCampaign(api campaignsAPI) http.HandlerFunc {
 	return func(wr http.ResponseWriter, req *http.Request) {
 		campID := chi.URLParam(req, "id")
 
-		c, err := api.Get(req.Context(), campID)
+		c, err := api.GetCampaign(req.Context(), campID)
 		if err != nil {
 			if errors.Is(err, enforcer.ErrNotFound) {
 				writeOut(wr, req, http.StatusNotFound,
@@ -35,21 +34,21 @@ func getCampaign(api campaignsAPI) http.HandlerFunc {
 func listCampaigns(api campaignsAPI) http.HandlerFunc {
 	return func(wr http.ResponseWriter, req *http.Request) {
 		p := req.URL.Query()
-		q := campaign.Query{
+		q := enforcer.Query{
 			OnlyActive:  p.Get("only_active") == "true",
 			Include:     cleanSplit(p.Get("include"), ","),
 			SearchIn:    cleanSplit(p.Get("search_in"), ","),
 			HavingScope: cleanSplit(p.Get("scope"), ","),
 		}
 
-		camps, err := api.List(req.Context(), q)
+		camps, err := api.ListCampaigns(req.Context(), q)
 		if err != nil {
 			writeOut(wr, req, http.StatusInternalServerError,
 				enforcer.ErrInternal.WithCausef(err.Error()))
 			return
 		}
 		if camps == nil {
-			camps = []campaign.Campaign{}
+			camps = []enforcer.Campaign{}
 		}
 
 		writeOut(wr, req, http.StatusOK, camps)
@@ -58,14 +57,14 @@ func listCampaigns(api campaignsAPI) http.HandlerFunc {
 
 func createCampaign(api campaignsAPI) http.HandlerFunc {
 	return func(wr http.ResponseWriter, req *http.Request) {
-		var c campaign.Campaign
+		var c enforcer.Campaign
 		if err := json.NewDecoder(req.Body).Decode(&c); err != nil {
 			writeOut(wr, req, http.StatusBadRequest,
 				enforcer.ErrInvalid.WithCausef("failed to parse body: %v", err.Error()))
 			return
 		}
 
-		created, err := api.Create(req.Context(), c)
+		created, err := api.CreateCampaign(req.Context(), c)
 		if err != nil {
 			if errors.Is(err, enforcer.ErrInvalid) {
 				writeOut(wr, req, http.StatusBadRequest,
@@ -85,14 +84,14 @@ func updateCampaign(api campaignsAPI) http.HandlerFunc {
 	return func(wr http.ResponseWriter, req *http.Request) {
 		campID := chi.URLParam(req, "id")
 
-		var upd campaign.Updates
+		var upd enforcer.Updates
 		if err := json.NewDecoder(req.Body).Decode(&upd); err != nil {
 			writeOut(wr, req, http.StatusBadRequest,
 				enforcer.ErrInvalid.WithCausef("failed to parse body: %v", err.Error()))
 			return
 		}
 
-		c, err := api.Update(req.Context(), campID, upd)
+		c, err := api.UpdateCampaign(req.Context(), campID, upd)
 		if err != nil {
 			if errors.Is(err, enforcer.ErrNotFound) {
 				writeOut(wr, req, http.StatusNotFound,
@@ -112,7 +111,7 @@ func deleteCampaign(api campaignsAPI) http.HandlerFunc {
 	return func(wr http.ResponseWriter, req *http.Request) {
 		campID := chi.URLParam(req, "id")
 
-		err := api.Delete(req.Context(), campID)
+		err := api.DeleteCampaign(req.Context(), campID)
 		if err != nil {
 			if errors.Is(err, enforcer.ErrNotFound) {
 				writeOut(wr, req, http.StatusNotFound,

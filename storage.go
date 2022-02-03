@@ -1,17 +1,30 @@
-package campaign
+package enforcer
 
 import (
 	"context"
 	"time"
 )
 
-// Store implementation provides storage layer for campaigns.
+// Store implementation provides storage layer for campaigns and enrolments.
 type Store interface {
+	CampaignStore
+	EnrolmentStore
+}
+
+// CampaignStore implementation provides storage layer for campaigns.
+type CampaignStore interface {
 	GetCampaign(ctx context.Context, name string) (*Campaign, error)
 	ListCampaigns(ctx context.Context, q Query) ([]Campaign, error)
 	CreateCampaign(ctx context.Context, camp Campaign) error
 	UpdateCampaign(ctx context.Context, name string, updateFn UpdateFn) (*Campaign, error)
 	DeleteCampaign(ctx context.Context, name string) error
+}
+
+// EnrolmentStore implementation provides storage layer for enrolments.
+type EnrolmentStore interface {
+	GetEnrolment(ctx context.Context, actorID, campaignID string) (*Enrolment, error)
+	ListEnrolments(ctx context.Context, actorID string) ([]Enrolment, error)
+	UpsertEnrolment(ctx context.Context, enrolment Enrolment) error
 }
 
 // UpdateFn typed func value is used by campaign store to update
