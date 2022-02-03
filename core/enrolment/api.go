@@ -115,9 +115,9 @@ func (api *API) Enrol(ctx context.Context, campaignName string, ac actor.Actor) 
 
 	newEnr.StartedAt = time.Now()
 	newEnr.EndsAt = camp.EndAt
-	if camp.Spec.Deadline > 0 {
+	if camp.Deadline > 0 {
 		// relative end_date due to deadline (in days)
-		newEnr.EndsAt = newEnr.StartedAt.AddDate(0, 0, camp.Spec.Deadline)
+		newEnr.EndsAt = newEnr.StartedAt.AddDate(0, 0, camp.Deadline)
 	}
 	newEnr.setStatus()
 
@@ -171,16 +171,16 @@ func (api *API) prepEnrolment(ctx context.Context, camp campaign.Campaign, ac ac
 		Status:         StatusEligible,
 		ActorID:        ac.ID,
 		CampaignID:     camp.Name,
-		RemainingSteps: len(camp.Spec.Steps),
+		RemainingSteps: len(camp.Steps),
 	}, nil
 }
 
 func (api *API) checkEligibility(ctx context.Context, camp campaign.Campaign, ac actor.Actor) error {
-	if camp.Spec.Eligibility == "" {
+	if camp.Eligibility == "" {
 		return nil
 	}
 
-	isPass, err := api.RuleEngine.Exec(ctx, camp.Spec.Eligibility, ruleExecEnv(ac, nil))
+	isPass, err := api.RuleEngine.Exec(ctx, camp.Eligibility, ruleExecEnv(ac, nil))
 	if err != nil {
 		return err
 	} else if !isPass {
@@ -196,12 +196,12 @@ func (api *API) applyCompletion(ctx context.Context, act actor.Action, enr *Enro
 	}
 	env := ruleExecEnv(act.Actor, &act)
 
-	if camp.Spec.IsUnordered {
+	if camp.IsUnordered {
 		done := map[int]struct{}{}
 		for _, step := range enr.CompletedSteps {
 			done[step.StepID] = struct{}{}
 		}
-		for i, step := range camp.Spec.Steps {
+		for i, step := range camp.Steps {
 			if _, alreadyDone := done[i]; alreadyDone {
 				continue
 			}
@@ -215,7 +215,7 @@ func (api *API) applyCompletion(ctx context.Context, act actor.Action, enr *Enro
 					DoneAt:   act.Time,
 					ActionID: act.ID,
 				})
-				enr.RemainingSteps = len(camp.Spec.Steps) - len(enr.CompletedSteps)
+				enr.RemainingSteps = len(camp.Steps) - len(enr.CompletedSteps)
 				return true, nil
 			}
 		}
@@ -224,11 +224,11 @@ func (api *API) applyCompletion(ctx context.Context, act actor.Action, enr *Enro
 	}
 
 	nextStepID := len(enr.CompletedSteps)
-	if nextStepID >= len(camp.Spec.Steps) {
+	if nextStepID >= len(camp.Steps) {
 		return false, enforcer.ErrInternal.WithMsgf("campaign has lesser steps than enrolment")
 	}
 
-	pass, err := api.RuleEngine.Exec(ctx, camp.Spec.Steps[nextStepID], env)
+	pass, err := api.RuleEngine.Exec(ctx, camp.Steps[nextStepID], env)
 	if err != nil || !pass {
 		return false, err
 	}
@@ -238,35 +238,6 @@ func (api *API) applyCompletion(ctx context.Context, act actor.Action, enr *Enro
 		DoneAt:   act.Time,
 		ActionID: act.ID,
 	})
-	enr.RemainingSteps = len(camp.Spec.Steps) - len(enr.CompletedSteps)
+	enr.RemainingSteps = len(camp.Steps) - len(enr.CompletedSteps)
 	return true, nil
-}
-
-func ruleExecEnv(ac actor.Actor, act *actor.Action) map[string]interface{} {
-	d := map[string]interface{}{}
-	if act != nil {
-		d["event"] = mergeMap(act.Data, map[string]interface{}{"id": act.ID, "time": act.Time})
-		ac = act.Actor
-	}
-	d["actor"] = mergeMap(ac.Attribs, map[string]interface{}{"id": ac.ID})
-	return d
-}
-
-func mergeMap(m1, m2 map[string]interface{}) map[string]interface{} {
-	res := map[string]interface{}{}
-	for k, v := range m1 {
-		res[k] = v
-	}
-	for k, v := range m2 {
-		res[k] = v
-	}
-	return res
-}
-
-func collectCampaignIDs(existing []Enrolment) []string {
-	var res []string
-	for _, enrolment := range existing {
-		res = append(res, enrolment.CampaignID)
-	}
-	return res
 }

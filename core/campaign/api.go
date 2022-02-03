@@ -31,7 +31,7 @@ func (api *API) List(ctx context.Context, q Query) ([]Campaign, error) {
 // Create validates and inserts a new campaign into the storage. Campaign ID is
 // assigned automatically and the stored version of the campaign is returned.
 func (api *API) Create(ctx context.Context, camp Campaign) (*Campaign, error) {
-	if err := camp.Validate(true); err != nil {
+	if err := camp.Validate(); err != nil {
 		return nil, err
 	}
 

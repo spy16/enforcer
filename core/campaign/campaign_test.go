@@ -108,52 +108,44 @@ func TestCampaign_Validate(t *testing.T) {
 				Enabled: false,
 				StartAt: now.AddDate(0, 0, -3),
 				EndAt:   now.AddDate(0, 0, 3),
-				Spec: Spec{
-					Steps: []string{"       "},
-				},
+				Steps:   []string{"       "},
 			},
 			wantErr: enforcer.ErrInvalid,
 		},
 		{
 			title: "InvalidDeadline",
 			campaign: Campaign{
-				Name:    "foo",
-				Enabled: false,
-				StartAt: now.AddDate(0, 0, -3),
-				EndAt:   now.AddDate(0, 0, 3),
-				Spec: Spec{
-					Eligibility: "not user.blocked",
-					Deadline:    -10,
-				},
+				Name:        "foo",
+				Enabled:     false,
+				StartAt:     now.AddDate(0, 0, -3),
+				EndAt:       now.AddDate(0, 0, 3),
+				Eligibility: "not user.blocked",
+				Deadline:    -10,
 			},
 			wantErr: enforcer.ErrInvalid,
 		},
 		{
 			title: "InvalidPriority",
 			campaign: Campaign{
-				Name:    "foo",
-				Enabled: false,
-				StartAt: now.AddDate(0, 0, -3),
-				EndAt:   now.AddDate(0, 0, 3),
-				Spec: Spec{
-					Eligibility: "not user.blocked",
-					Priority:    100000,
-				},
+				Name:        "foo",
+				Enabled:     false,
+				StartAt:     now.AddDate(0, 0, -3),
+				EndAt:       now.AddDate(0, 0, 3),
+				Eligibility: "not user.blocked",
+				Priority:    100000,
 			},
 			wantErr: enforcer.ErrInvalid,
 		},
 		{
 			title: "Valid",
 			campaign: Campaign{
-				Name:    "foo",
-				Enabled: false,
-				StartAt: now.AddDate(0, 0, -3),
-				EndAt:   now.AddDate(0, 0, 3),
-				Spec: Spec{
-					Eligibility: "not user.blocked",
-					Deadline:    10,
-					Priority:    50,
-				},
+				Name:        "foo",
+				Enabled:     false,
+				StartAt:     now.AddDate(0, 0, -3),
+				EndAt:       now.AddDate(0, 0, 3),
+				Eligibility: "not user.blocked",
+				Deadline:    10,
+				Priority:    50,
 			},
 			wantErr: nil,
 		},
@@ -161,7 +153,7 @@ func TestCampaign_Validate(t *testing.T) {
 
 	for _, tt := range table {
 		t.Run(tt.title, func(t *testing.T) {
-			got := tt.campaign.Validate(true)
+			got := tt.campaign.Validate()
 			if tt.wantErr == nil {
 				assert.NoError(t, got)
 			} else {

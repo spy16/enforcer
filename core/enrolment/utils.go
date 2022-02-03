@@ -1,5 +1,7 @@
 package enrolment
 
+import "github.com/spy16/enforcer/core/actor"
+
 func contains(arr []string, item string) bool {
 	for _, s := range arr {
 		if s == item {
@@ -20,6 +22,35 @@ func filterByStatus(arr []Enrolment, status []string) []Enrolment {
 		if contains(status, enr.Status) {
 			res = append(res, enr)
 		}
+	}
+	return res
+}
+
+func ruleExecEnv(ac actor.Actor, act *actor.Action) map[string]interface{} {
+	d := map[string]interface{}{}
+	if act != nil {
+		d["event"] = mergeMap(act.Data, map[string]interface{}{"id": act.ID, "time": act.Time})
+		ac = act.Actor
+	}
+	d["actor"] = mergeMap(ac.Attribs, map[string]interface{}{"id": ac.ID})
+	return d
+}
+
+func mergeMap(m1, m2 map[string]interface{}) map[string]interface{} {
+	res := map[string]interface{}{}
+	for k, v := range m1 {
+		res[k] = v
+	}
+	for k, v := range m2 {
+		res[k] = v
+	}
+	return res
+}
+
+func collectCampaignIDs(existing []Enrolment) []string {
+	var res []string
+	for _, enrolment := range existing {
+		res = append(res, enrolment.CampaignID)
 	}
 	return res
 }
