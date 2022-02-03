@@ -175,12 +175,12 @@ func (api *API) Enrol(ctx context.Context, campaignName string, ac Actor) (*Enro
 // Ingest processes the action within current enrolments and returns the list of
 // enrolments that progressed. If completeMulti is false, only one enrolment will
 // be progressed.
-func (api *API) Ingest(ctx context.Context, completeMulti bool, act Action) ([]Enrolment, error) {
+func (api *API) Ingest(ctx context.Context, completeMulti bool, ac Actor, act Action) ([]Enrolment, error) {
 	if err := act.Validate(); err != nil {
 		return nil, err
 	}
 
-	applicable, err := api.ListExistingEnrolments(ctx, act.Actor.ID, []string{StatusActive})
+	applicable, err := api.ListExistingEnrolments(ctx, ac.ID, []string{StatusActive})
 	if err != nil {
 		return nil, err
 	}
@@ -190,7 +190,7 @@ func (api *API) Ingest(ctx context.Context, completeMulti bool, act Action) ([]E
 	var isAffected bool
 	var completionErr error
 	for _, enr := range applicable {
-		isAffected, completionErr = api.applyCompletion(ctx, act, &enr)
+		isAffected, completionErr = api.applyCompletion(ctx, ac, act, &enr)
 		if completionErr != nil {
 			break
 		} else if isAffected {
@@ -237,12 +237,12 @@ func (api *API) checkEligibility(ctx context.Context, camp Campaign, ac Actor) e
 	return nil
 }
 
-func (api *API) applyCompletion(ctx context.Context, act Action, enr *Enrolment) (bool, error) {
+func (api *API) applyCompletion(ctx context.Context, ac Actor, act Action, enr *Enrolment) (bool, error) {
 	camp, err := api.GetCampaign(ctx, enr.CampaignID)
 	if err != nil {
 		return false, err
 	}
-	env := ruleExecEnv(act.Actor, &act)
+	env := ruleExecEnv(ac, &act)
 
 	if camp.IsUnordered {
 		done := map[int]struct{}{}

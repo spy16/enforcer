@@ -25,24 +25,29 @@ func (a Actor) String() string { return fmt.Sprintf("Actor{id='%s'}", a.ID) }
 
 // Action represents an activity/action executed by an actor.
 type Action struct {
-	ID    string                 `json:"id"`
-	Time  time.Time              `json:"time"`
-	Data  map[string]interface{} `json:"data"`
-	Actor Actor                  `json:"actor"`
+	ID      string                 `json:"id"`
+	Time    time.Time              `json:"time"`
+	Data    map[string]interface{} `json:"data"`
+	ActorID string                 `json:"actor_id"`
 }
 
 // Validate performs validation of given action.
 func (act *Action) Validate() error {
 	act.ID = strings.TrimSpace(act.ID)
+	act.ActorID = strings.TrimSpace(act.ActorID)
 	if act.Time.IsZero() {
 		act.Time = time.Now()
 	}
 
 	if act.ID == "" {
-		return ErrInvalid.WithMsgf("empty action_id")
+		return ErrInvalid.WithMsgf("id cannot be empty")
 	}
 
-	return act.Actor.Validate()
+	if act.ActorID == "" {
+		return ErrInvalid.WithMsgf("actor_id cannot be empty")
+	}
+
+	return nil
 }
 
 func (act Action) String() string {

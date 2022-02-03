@@ -25,8 +25,8 @@ type campaignsAPI interface {
 type enrolmentsAPI interface {
 	GetEnrolment(ctx context.Context, campName string, ac enforcer.Actor) (*enforcer.Enrolment, error)
 	ListAllEnrolments(ctx context.Context, ac enforcer.Actor, q enforcer.Query) ([]enforcer.Enrolment, error)
-	Enrol(ctx context.Context, campaignName string, ac enforcer.Actor) (*enforcer.Enrolment, bool, error)
-	Ingest(ctx context.Context, completeMulti bool, act enforcer.Action) ([]enforcer.Enrolment, error)
+	Enrol(ctx context.Context, campaignName string, act enforcer.Actor) (*enforcer.Enrolment, bool, error)
+	Ingest(ctx context.Context, completeMulti bool, ac enforcer.Actor, act enforcer.Action) ([]enforcer.Enrolment, error)
 }
 
 // Serve starts an REST api server on given bind address.

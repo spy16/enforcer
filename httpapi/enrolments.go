@@ -127,9 +127,8 @@ func ingest(api enrolmentsAPI, getActor getActor) http.HandlerFunc {
 				enforcer.ErrInvalid.WithCausef("actor '%s' not found", actorID))
 			return
 		}
-		body.Action.Actor = *ac
 
-		enr, err := api.Ingest(req.Context(), body.Multi, body.Action)
+		enr, err := api.Ingest(req.Context(), body.Multi, *ac, body.Action)
 		if err != nil {
 			if errors.Is(err, enforcer.ErrNotFound) {
 				writeOut(wr, req, http.StatusNotFound,

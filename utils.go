@@ -28,7 +28,6 @@ func ruleExecEnv(ac Actor, act *Action) map[string]interface{} {
 	d := map[string]interface{}{}
 	if act != nil {
 		d["event"] = mergeMap(act.Data, map[string]interface{}{"id": act.ID, "time": act.Time})
-		ac = act.Actor
 	}
 	d["actor"] = mergeMap(ac.Attribs, map[string]interface{}{"id": ac.ID})
 	return d
