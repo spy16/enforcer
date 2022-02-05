@@ -74,6 +74,10 @@ func (c *Campaign) Validate() error {
 		c.CreatedAt = time.Now()
 		c.UpdatedAt = c.CreatedAt
 	}
+	c.CreatedAt = c.CreatedAt.UTC()
+	c.UpdatedAt = c.UpdatedAt.UTC()
+	c.StartAt = c.StartAt.UTC()
+	c.EndAt = c.EndAt.UTC()
 
 	if c.Name == "" {
 		return ErrInvalid.WithMsgf("a unique name must be set")

@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -68,11 +70,17 @@ func cmdServe(ctx context.Context) *cobra.Command {
 		Aliases: []string{"server", "start-server", "httpapi"},
 	}
 
-	var addr string
+	var addr, db string
 	cmd.Flags().StringVarP(&addr, "addr", "a", ":8080", "Bind address for server")
+	cmd.Flags().StringVarP(&db, "db", "d", ":memory:", "Storage layer URI")
 
 	cmd.Run = func(cmd *cobra.Command, args []string) {
-		store := &inmem.Store{}
+		store, err := setupStore(db)
+		if err != nil {
+			log.Fatal().Err(err).Msg("failed to setup storage")
+			return
+		}
+
 		enforcerAPI := &enforcer.API{
 			Store:  store,
 			Engine: rule.New(),
@@ -123,4 +131,18 @@ func setupLogger(level, format string) (destroy func()) {
 			_ = closer.Close()
 		}
 	}
+}
+
+func setupStore(spec string) (enforcer.Store, error) {
+	spec = strings.TrimSpace(spec)
+	if spec == ":memory:" {
+		return &inmem.Store{}, nil
+	}
+
+	uri, err := url.Parse(spec)
+	if err != nil {
+		return nil, fmt.Errorf("%w: failed to parse storage URI: '%s'", err, spec)
+	}
+	// TODO: add storage layer init based on the parsed URI.
+	return nil, fmt.Errorf("unknown storage scheme: '%s'", uri.Scheme)
 }

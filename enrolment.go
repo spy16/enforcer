@@ -19,12 +19,12 @@ var val = validator.New()
 // Enrolment represents a binding between an actor & a campaign, and
 // also contains the progress of the actor in the campaign.
 type Enrolment struct {
+	Status         string       `json:"status" validate:"alpha,uppercase"`
 	ActorID        string       `json:"actor_id" validate:"required"`
 	CampaignID     int          `json:"campaign_id" validate:"required"`
-	Status         string       `json:"status" validate:"alpha,uppercase"`
 	StartedAt      time.Time    `json:"started_at,omitempty"`
 	EndsAt         time.Time    `json:"ends_at,omitempty"`
-	RemainingSteps int          `json:"remaining_steps,omitempty"`
+	TotalSteps     int          `json:"total_steps"`
 	CompletedSteps []StepResult `json:"completed_steps,omitempty"`
 }
 
@@ -39,7 +39,7 @@ type StepResult struct {
 func (enr *Enrolment) setStatus() {
 	if enr.StartedAt.IsZero() {
 		enr.Status = StatusEligible
-	} else if enr.RemainingSteps == 0 {
+	} else if enr.TotalSteps == len(enr.CompletedSteps) {
 		enr.Status = StatusCompleted
 	} else if enr.EndsAt.Before(time.Now()) {
 		enr.Status = StatusExpired
@@ -50,10 +50,14 @@ func (enr *Enrolment) setStatus() {
 
 func (enr *Enrolment) validate() error {
 	enr.ActorID = strings.TrimSpace(enr.ActorID)
+	enr.StartedAt = enr.StartedAt.UTC()
+	enr.EndsAt = enr.EndsAt.UTC()
 	enr.setStatus()
 
-	for _, step := range enr.CompletedSteps {
+	for i := range enr.CompletedSteps {
+		step := &enr.CompletedSteps[i]
 		step.ActionID = strings.TrimSpace(step.ActionID)
+		step.DoneAt = step.DoneAt.UTC()
 		if err := val.Struct(step); err != nil {
 			return err
 		}

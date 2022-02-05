@@ -25,36 +25,42 @@ func TestEnrolment_computeStatus(t *testing.T) {
 		{
 			title: "Active",
 			enr: Enrolment{
-				StartedAt:      now.AddDate(0, 0, -10),
-				EndsAt:         now.AddDate(0, 0, 10),
-				RemainingSteps: 3,
+				StartedAt:  now.AddDate(0, 0, -10),
+				EndsAt:     now.AddDate(0, 0, 10),
+				TotalSteps: 3,
 			},
 			wantStatus: StatusActive,
 		},
 		{
 			title: "Active",
 			enr: Enrolment{
-				StartedAt:      now.AddDate(0, 0, -10),
-				EndsAt:         now.AddDate(0, 0, -5),
-				RemainingSteps: 3,
+				StartedAt:  now.AddDate(0, 0, -10),
+				EndsAt:     now.AddDate(0, 0, -5),
+				TotalSteps: 3,
 			},
 			wantStatus: StatusExpired,
 		},
 		{
 			title: "Completed_AndEnded",
 			enr: Enrolment{
-				StartedAt:      now.AddDate(0, 0, -10),
-				EndsAt:         now.AddDate(0, 0, -5),
-				RemainingSteps: 0,
+				StartedAt:  now.AddDate(0, 0, -10),
+				EndsAt:     now.AddDate(0, 0, -5),
+				TotalSteps: 1,
+				CompletedSteps: []StepResult{
+					{ActionID: "step_event_1"},
+				},
 			},
 			wantStatus: StatusCompleted,
 		},
 		{
 			title: "Completed_NotEnded",
 			enr: Enrolment{
-				StartedAt:      now.AddDate(0, 0, -10),
-				EndsAt:         now.AddDate(0, 0, 3),
-				RemainingSteps: 0,
+				StartedAt:  now.AddDate(0, 0, -10),
+				EndsAt:     now.AddDate(0, 0, 3),
+				TotalSteps: 1,
+				CompletedSteps: []StepResult{
+					{ActionID: "step_event_1"},
+				},
 			},
 			wantStatus: StatusCompleted,
 		},

@@ -58,7 +58,11 @@ func (api *API) UpdateCampaign(ctx context.Context, id int, updates Updates) (*C
 	}
 
 	updateFn := func(ctx context.Context, actual *Campaign) error {
-		return actual.apply(updates)
+		if err := actual.apply(updates); err != nil {
+			return err
+		}
+		actual.UpdatedAt = time.Now()
+		return nil
 	}
 
 	return api.Store.UpdateCampaign(ctx, id, updateFn)
@@ -214,10 +218,10 @@ func (api *API) prepEnrolment(ctx context.Context, camp Campaign, ac Actor) (*En
 	}
 
 	return &Enrolment{
-		Status:         StatusEligible,
-		ActorID:        ac.ID,
-		CampaignID:     camp.ID,
-		RemainingSteps: len(camp.Steps),
+		Status:     StatusEligible,
+		ActorID:    ac.ID,
+		CampaignID: camp.ID,
+		TotalSteps: len(camp.Steps),
 	}, nil
 }
 
@@ -261,7 +265,7 @@ func (api *API) applyCompletion(ctx context.Context, ac Actor, act Action, enr *
 					DoneAt:   act.Time,
 					ActionID: act.ID,
 				})
-				enr.RemainingSteps = len(camp.Steps) - len(enr.CompletedSteps)
+				enr.TotalSteps = len(camp.Steps)
 				return true, nil
 			}
 		}
@@ -284,6 +288,6 @@ func (api *API) applyCompletion(ctx context.Context, ac Actor, act Action, enr *
 		DoneAt:   act.Time,
 		ActionID: act.ID,
 	})
-	enr.RemainingSteps = len(camp.Steps) - len(enr.CompletedSteps)
+	enr.TotalSteps = len(camp.Steps)
 	return true, nil
 }
