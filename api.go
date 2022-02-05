@@ -3,7 +3,6 @@ package enforcer
 import (
 	"context"
 	"errors"
-	"strings"
 	"time"
 )
 
@@ -18,12 +17,11 @@ type ruleEngine interface {
 }
 
 // GetCampaign returns campaign with given ID. Returns ErrNotFound if not found.
-func (api *API) GetCampaign(ctx context.Context, name string) (*Campaign, error) {
-	name = strings.TrimSpace(name)
-	if name == "" {
-		return nil, ErrInvalid.WithMsgf("name must not be empty")
+func (api *API) GetCampaign(ctx context.Context, id int) (*Campaign, error) {
+	if id <= 0 {
+		return nil, ErrInvalid.WithMsgf("invalid id, must be non-zero and positive: %d", id)
 	}
-	return api.Store.GetCampaign(ctx, name)
+	return api.Store.GetCampaign(ctx, id)
 }
 
 // ListCampaigns returns a list of campaigns matching the given search query.
@@ -42,9 +40,11 @@ func (api *API) CreateCampaign(ctx context.Context, camp Campaign) (*Campaign, e
 		return nil, err
 	}
 
-	if err := api.Store.CreateCampaign(ctx, camp); err != nil {
+	id, err := api.Store.CreateCampaign(ctx, camp)
+	if err != nil {
 		return nil, err
 	}
+	camp.ID = id
 
 	return &camp, nil
 }
@@ -52,39 +52,37 @@ func (api *API) CreateCampaign(ctx context.Context, camp Campaign) (*Campaign, e
 // UpdateCampaign merges the given partial campaign object with the existing campaign and
 // stores. The updated version is returned. Some fields may not undergo update
 // based on current usage status.
-func (api *API) UpdateCampaign(ctx context.Context, name string, updates Updates) (*Campaign, error) {
-	name = strings.TrimSpace(name)
-	if name == "" {
-		return nil, ErrInvalid.WithMsgf("name must not be empty")
+func (api *API) UpdateCampaign(ctx context.Context, id int, updates Updates) (*Campaign, error) {
+	if id <= 0 {
+		return nil, ErrInvalid.WithMsgf("invalid id, must be non-zero and positive: %d", id)
 	}
 
 	updateFn := func(ctx context.Context, actual *Campaign) error {
 		return actual.apply(updates)
 	}
 
-	return api.Store.UpdateCampaign(ctx, name, updateFn)
+	return api.Store.UpdateCampaign(ctx, id, updateFn)
 }
 
 // DeleteCampaign deletes a campaign by the identifier.
-func (api *API) DeleteCampaign(ctx context.Context, name string) error {
-	name = strings.TrimSpace(name)
-	if name == "" {
-		return ErrInvalid.WithMsgf("name must not be empty")
+func (api *API) DeleteCampaign(ctx context.Context, id int) error {
+	if id <= 0 {
+		return ErrInvalid.WithMsgf("invalid id, must be non-zero and positive: %d", id)
 	}
-	return api.Store.DeleteCampaign(ctx, name)
+	return api.Store.DeleteCampaign(ctx, id)
 }
 
 // GetEnrolment returns an enrolment for campaign and an actor. If actor is not
 // already enrolled into the campaign and is eligible, a virtual enrolment with
 // status StatusEligible is returned.
-func (api *API) GetEnrolment(ctx context.Context, campaignName string, ac Actor) (*Enrolment, error) {
-	enr, err := api.Store.GetEnrolment(ctx, ac.ID, campaignName)
+func (api *API) GetEnrolment(ctx context.Context, campaignID int, ac Actor) (*Enrolment, error) {
+	enr, err := api.Store.GetEnrolment(ctx, ac.ID, campaignID)
 	if !errors.Is(err, ErrNotFound) {
 		enr.setStatus()
 		return enr, err
 	}
 
-	camp, err := api.GetCampaign(ctx, campaignName)
+	camp, err := api.GetCampaign(ctx, campaignID)
 	if err != nil {
 		return nil, err
 	}
@@ -118,7 +116,7 @@ func (api *API) ListAllEnrolments(ctx context.Context, ac Actor, campQ Query) ([
 	}
 
 	var res []Enrolment
-	alreadyEnrolled := map[string]struct{}{}
+	alreadyEnrolled := map[int]struct{}{}
 	for _, enrolment := range existing {
 		enrolment.setStatus()
 		alreadyEnrolled[enrolment.CampaignID] = struct{}{}
@@ -126,7 +124,7 @@ func (api *API) ListAllEnrolments(ctx context.Context, ac Actor, campQ Query) ([
 	}
 
 	for _, camp := range camps {
-		if _, exists := alreadyEnrolled[camp.Name]; exists {
+		if _, exists := alreadyEnrolled[camp.ID]; exists {
 			continue
 		}
 
@@ -144,14 +142,14 @@ func (api *API) ListAllEnrolments(ctx context.Context, ac Actor, campQ Query) ([
 
 // Enrol binds the given actor to the campaign. Boolean flag will be set only if
 // a new enrolment is created.
-func (api *API) Enrol(ctx context.Context, campaignName string, ac Actor) (*Enrolment, bool, error) {
-	enr, err := api.Store.GetEnrolment(ctx, ac.ID, campaignName)
+func (api *API) Enrol(ctx context.Context, campaignID int, ac Actor) (*Enrolment, bool, error) {
+	enr, err := api.Store.GetEnrolment(ctx, ac.ID, campaignID)
 	if !errors.Is(err, ErrNotFound) {
 		enr.setStatus()
 		return enr, false, err
 	}
 
-	camp, err := api.GetCampaign(ctx, campaignName)
+	camp, err := api.GetCampaign(ctx, campaignID)
 	if err != nil {
 		return nil, false, err
 	}
@@ -218,7 +216,7 @@ func (api *API) prepEnrolment(ctx context.Context, camp Campaign, ac Actor) (*En
 	return &Enrolment{
 		Status:         StatusEligible,
 		ActorID:        ac.ID,
-		CampaignID:     camp.Name,
+		CampaignID:     camp.ID,
 		RemainingSteps: len(camp.Steps),
 	}, nil
 }

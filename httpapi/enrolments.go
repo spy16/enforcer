@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/go-chi/chi/v5"
 
@@ -20,8 +21,14 @@ func getEnrolment(api enrolmentsAPI, getActor getActor) http.HandlerFunc {
 			return
 		}
 
-		campName := chi.URLParam(req, "campaign_name")
-		enr, err := api.GetEnrolment(req.Context(), campName, *ac)
+		campID, err := strconv.ParseInt(chi.URLParam(req, "campaign_id"), 10, 64)
+		if err != nil {
+			writeOut(wr, req, http.StatusBadRequest,
+				enforcer.ErrInvalid.WithMsgf("campaign id must be an integer").WithCausef(err.Error()))
+			return
+		}
+
+		enr, err := api.GetEnrolment(req.Context(), int(campID), *ac)
 		if err != nil {
 			if errors.Is(err, enforcer.ErrNotFound) {
 				writeOut(wr, req, http.StatusNotFound,
@@ -50,8 +57,8 @@ func listEnrolments(api enrolmentsAPI, getActor getActor) http.HandlerFunc {
 		p := req.URL.Query()
 		q := enforcer.Query{
 			OnlyActive:  p.Get("only_active") == "true",
-			Include:     cleanSplit(p.Get("include"), ","),
-			SearchIn:    cleanSplit(p.Get("search_in"), ","),
+			Include:     intArray(cleanSplit(p.Get("include"), ",")),
+			SearchIn:    intArray(cleanSplit(p.Get("search_in"), ",")),
 			HavingScope: cleanSplit(p.Get("scope"), ","),
 		}
 
@@ -69,7 +76,7 @@ func listEnrolments(api enrolmentsAPI, getActor getActor) http.HandlerFunc {
 func enrol(api enrolmentsAPI, getActor getActor) http.HandlerFunc {
 	return func(wr http.ResponseWriter, req *http.Request) {
 		var body struct {
-			CampaignName string `json:"campaign_name"`
+			CampaignID int `json:"campaign_id"`
 		}
 		if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
 			writeOut(wr, req, http.StatusBadRequest,
@@ -85,7 +92,7 @@ func enrol(api enrolmentsAPI, getActor getActor) http.HandlerFunc {
 			return
 		}
 
-		enr, isNew, err := api.Enrol(req.Context(), body.CampaignName, *ac)
+		enr, isNew, err := api.Enrol(req.Context(), body.CampaignID, *ac)
 		if err != nil {
 			if errors.Is(err, enforcer.ErrNotFound) {
 				writeOut(wr, req, http.StatusNotFound,
@@ -93,6 +100,8 @@ func enrol(api enrolmentsAPI, getActor getActor) http.HandlerFunc {
 			} else if errors.Is(err, enforcer.ErrIneligible) {
 				writeOut(wr, req, http.StatusBadRequest,
 					enforcer.ErrNotFound.WithCausef(err.Error()))
+			} else if errors.Is(err, enforcer.ErrInvalid) {
+				writeOut(wr, req, http.StatusBadRequest, err)
 			} else {
 				writeOut(wr, req, http.StatusInternalServerError,
 					enforcer.ErrInternal.WithCausef(err.Error()))

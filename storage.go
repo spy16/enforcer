@@ -13,16 +13,16 @@ type Store interface {
 
 // CampaignStore implementation provides storage layer for campaigns.
 type CampaignStore interface {
-	GetCampaign(ctx context.Context, name string) (*Campaign, error)
+	GetCampaign(ctx context.Context, id int) (*Campaign, error)
 	ListCampaigns(ctx context.Context, q Query) ([]Campaign, error)
-	CreateCampaign(ctx context.Context, camp Campaign) error
-	UpdateCampaign(ctx context.Context, name string, updateFn UpdateFn) (*Campaign, error)
-	DeleteCampaign(ctx context.Context, name string) error
+	CreateCampaign(ctx context.Context, camp Campaign) (int, error)
+	UpdateCampaign(ctx context.Context, id int, updateFn UpdateFn) (*Campaign, error)
+	DeleteCampaign(ctx context.Context, id int) error
 }
 
 // EnrolmentStore implementation provides storage layer for enrolments.
 type EnrolmentStore interface {
-	GetEnrolment(ctx context.Context, actorID, campaignID string) (*Enrolment, error)
+	GetEnrolment(ctx context.Context, actorID string, campaignID int) (*Enrolment, error)
 	ListEnrolments(ctx context.Context, actorID string) ([]Enrolment, error)
 	UpsertEnrolment(ctx context.Context, enrolment Enrolment) error
 }
@@ -36,14 +36,14 @@ type UpdateFn func(ctx context.Context, actual *Campaign) error
 // Following criteria must be realised as:
 // 	`Include + (SearchIn AND OnlyActive AND HavingScope)`
 type Query struct {
-	// Include campaigns with given names unconditionally (i.e., other
+	// Include campaigns with given ids unconditionally (i.e., other
 	// filters do not apply to this).
-	Include []string `json:"include,omitempty"`
+	Include []int `json:"include,omitempty"`
 
 	// SearchIn limits the search-space to given campaign IDs and
 	// returns campaigns that match all other filters within this
 	// list.
-	SearchIn []string `json:"search_in,omitempty"`
+	SearchIn []int `json:"search_in,omitempty"`
 
 	// OnlyActive signals to return only active campaigns.
 	OnlyActive bool `json:"only_active,omitempty"`
@@ -54,7 +54,7 @@ type Query struct {
 }
 
 func (q Query) filterCampaigns(arr []Campaign) []Campaign {
-	searchSet := map[string]struct{}{}
+	searchSet := map[int]struct{}{}
 	for _, id := range q.SearchIn {
 		searchSet[id] = struct{}{}
 	}
@@ -73,7 +73,7 @@ func (q Query) matchQuery(c Campaign) bool {
 	if len(q.SearchIn) > 0 {
 		found := false
 		for _, id := range q.SearchIn {
-			if id == c.Name {
+			if id == c.ID {
 				found = true
 				break
 			}

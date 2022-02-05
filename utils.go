@@ -44,8 +44,8 @@ func mergeMap(m1, m2 map[string]interface{}) map[string]interface{} {
 	return res
 }
 
-func collectCampaignIDs(existing []Enrolment) []string {
-	var res []string
+func collectCampaignIDs(existing []Enrolment) []int {
+	var res []int
 	for _, enrolment := range existing {
 		res = append(res, enrolment.CampaignID)
 	}

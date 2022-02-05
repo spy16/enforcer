@@ -28,7 +28,7 @@ func Serve(ctx context.Context, addr string, enforcerAPI *enforcer.API, getActor
 	})
 
 	r.Route("/v1/actors/{actor_id}", func(r chi.Router) {
-		r.Get("/enrolments/{campaign_name}", getEnrolment(enforcerAPI, getActor))
+		r.Get("/enrolments/{campaign_id}", getEnrolment(enforcerAPI, getActor))
 		r.Get("/enrolments", listEnrolments(enforcerAPI, getActor))
 		r.Post("/enrol", enrol(enforcerAPI, getActor))
 		r.Post("/ingest", ingest(enforcerAPI, getActor))
@@ -40,17 +40,17 @@ func Serve(ctx context.Context, addr string, enforcerAPI *enforcer.API, getActor
 type getActor func(ctx context.Context, actorID string) (*enforcer.Actor, error)
 
 type campaignsAPI interface {
-	GetCampaign(ctx context.Context, name string) (*enforcer.Campaign, error)
+	GetCampaign(ctx context.Context, id int) (*enforcer.Campaign, error)
 	ListCampaigns(ctx context.Context, q enforcer.Query) ([]enforcer.Campaign, error)
 	CreateCampaign(ctx context.Context, c enforcer.Campaign) (*enforcer.Campaign, error)
-	UpdateCampaign(ctx context.Context, name string, updates enforcer.Updates) (*enforcer.Campaign, error)
-	DeleteCampaign(ctx context.Context, name string) error
+	UpdateCampaign(ctx context.Context, id int, updates enforcer.Updates) (*enforcer.Campaign, error)
+	DeleteCampaign(ctx context.Context, id int) error
 }
 
 type enrolmentsAPI interface {
-	GetEnrolment(ctx context.Context, campName string, ac enforcer.Actor) (*enforcer.Enrolment, error)
+	GetEnrolment(ctx context.Context, campaignID int, ac enforcer.Actor) (*enforcer.Enrolment, error)
 	ListAllEnrolments(ctx context.Context, ac enforcer.Actor, q enforcer.Query) ([]enforcer.Enrolment, error)
-	Enrol(ctx context.Context, campaignName string, act enforcer.Actor) (*enforcer.Enrolment, bool, error)
+	Enrol(ctx context.Context, campaignID int, act enforcer.Actor) (*enforcer.Enrolment, bool, error)
 	Ingest(ctx context.Context, completeMulti bool, ac enforcer.Actor, act enforcer.Action) ([]enforcer.Enrolment, error)
 }
 

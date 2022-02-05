@@ -9,6 +9,7 @@ import (
 // Campaign represents a group of rules that an actor needs to complete
 // one-by-one.
 type Campaign struct {
+	ID            int       `json:"id"`
 	Name          string    `json:"name"`
 	Scopes        []string  `json:"scope"`
 	Enabled       bool      `json:"enabled"`
