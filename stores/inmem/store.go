@@ -46,6 +46,9 @@ func (mem *Store) CreateCampaign(ctx context.Context, c enforcer.Campaign) error
 	if mem.campaigns == nil {
 		mem.campaigns = map[string]enforcer.Campaign{}
 	}
+	if _, found := mem.campaigns[c.ID]; found {
+		return enforcer.ErrConflict.WithMsgf("campaign with id '%s' already exists", c.ID)
+	}
 	mem.campaigns[c.ID] = c
 	return nil
 }

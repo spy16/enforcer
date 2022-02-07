@@ -14,9 +14,12 @@ import (
 // Serve starts an REST api server on given bind address.
 func Serve(ctx context.Context, addr string, enforcerAPI *enforcer.API, getActor getActor) error {
 	r := chi.NewRouter()
-	r.Use(middleware.RequestID)
-	r.Use(middleware.RealIP)
-	r.Use(middleware.Recoverer)
+	r.Use(
+		middleware.RequestID,
+		middleware.RealIP,
+		requestLogger,
+		middleware.Recoverer,
+	)
 
 	r.Get("/ping", pingHandler())
 	r.Route("/v1/campaigns", func(r chi.Router) {
