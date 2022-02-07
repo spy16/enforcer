@@ -1,6 +1,7 @@
 package enforcer
 
 import (
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -9,15 +10,15 @@ import (
 // Campaign represents a group of rules that an actor needs to complete
 // one-by-one.
 type Campaign struct {
-	ID            int       `json:"id"`
-	Name          string    `json:"name"`
-	Scopes        []string  `json:"scope"`
+	ID            string    `json:"id"`
+	Tags          []string  `json:"tags"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
 	Enabled       bool      `json:"enabled"`
 	StartAt       time.Time `json:"start_at"`
 	EndAt         time.Time `json:"end_at"`
-	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
-	CurEnrolments int       `json:"current_enrolments"`
+	Description   string    `json:"description,omitempty"`
+	CurEnrolments int       `json:"cur_enrolments"`
 
 	// campaign configurations.
 	Steps         []string `json:"steps,omitempty"`
@@ -30,9 +31,9 @@ type Campaign struct {
 
 // Updates represents updates that can be applied on a campaign.
 type Updates struct {
+	Tags          []string   `json:"tags,omitempty"`
 	StartAt       *time.Time `json:"start_at,omitempty"`
 	EndAt         *time.Time `json:"end_at,omitempty"`
-	Scopes        []string   `json:"scopes,omitempty"`
 	Enabled       *bool      `json:"enabled,omitempty"`
 	Steps         []string   `json:"steps,omitempty"`
 	Deadline      *int       `json:"deadline,omitempty"`
@@ -49,15 +50,15 @@ func (c Campaign) IsActive(at time.Time) bool {
 		c.StartAt.Before(at) && c.EndAt.After(at)
 }
 
-// HasScope returns true if the campaign has all given scope-tags.
-func (c Campaign) HasScope(scope []string) bool {
+// HasTags returns true if the campaign has all given tags.
+func (c Campaign) HasTags(tags []string) bool {
 	set := map[string]struct{}{}
-	for _, scopeTag := range c.Scopes {
-		set[scopeTag] = struct{}{}
+	for _, tag := range c.Tags {
+		set[tag] = struct{}{}
 	}
 
-	for _, scopeTag := range scope {
-		if _, found := set[scopeTag]; !found {
+	for _, tag := range tags {
+		if _, found := set[tag]; !found {
 			return false
 		}
 	}
@@ -67,11 +68,14 @@ func (c Campaign) HasScope(scope []string) bool {
 // Validate performs validation of the entire campaign object. If checkSpec
 // is true, spec is also validated.
 func (c *Campaign) Validate() error {
-	c.Name = strings.TrimSpace(c.Name)
-	c.Scopes = cleanScope(c.Scopes)
+	now := time.Now()
+
+	c.ID = strings.TrimSpace(c.ID)
+	c.Tags = cleanTags(c.Tags)
 	c.Eligibility = strings.TrimSpace(c.Eligibility)
+	c.Description = strings.TrimSpace(c.Description)
 	if c.CreatedAt.IsZero() {
-		c.CreatedAt = time.Now()
+		c.CreatedAt = now
 		c.UpdatedAt = c.CreatedAt
 	}
 	c.CreatedAt = c.CreatedAt.UTC()
@@ -79,8 +83,8 @@ func (c *Campaign) Validate() error {
 	c.StartAt = c.StartAt.UTC()
 	c.EndAt = c.EndAt.UTC()
 
-	if c.Name == "" {
-		return ErrInvalid.WithMsgf("a unique name must be set")
+	if !idPattern.MatchString(c.ID) {
+		return ErrInvalid.WithMsgf("id is not valid").WithCausef("must match '%s'", idPattern)
 	}
 
 	if c.StartAt.IsZero() {
@@ -89,6 +93,10 @@ func (c *Campaign) Validate() error {
 
 	if c.EndAt.IsZero() {
 		return ErrInvalid.WithMsgf("end_at must be set")
+	} else if c.EndAt.Before(c.StartAt) {
+		return ErrInvalid.WithMsgf("end_at must be after start_at")
+	} else if c.EndAt.Before(now) {
+		return ErrInvalid.WithMsgf("end_at must be in the future")
 	}
 
 	if c.Eligibility == "" && len(c.Steps) == 0 {
@@ -134,36 +142,36 @@ func (c *Campaign) apply(updates Updates) error {
 		c.EndAt = *updates.EndAt
 	}
 
-	if len(updates.Scopes) != 0 {
+	if len(updates.Tags) != 0 {
 		set := map[string]bool{}
-		for _, scope := range updates.Scopes {
-			scope = strings.TrimSpace(scope)
-			if strings.HasPrefix(scope, "-") {
-				scope = scope[1:]
-				set[scope] = false
+		for _, tag := range updates.Tags {
+			tag = strings.TrimSpace(tag)
+			if strings.HasPrefix(tag, "-") {
+				tag = tag[1:]
+				set[tag] = false
 			} else {
-				if strings.HasPrefix(scope, "+") {
-					scope = scope[1:]
+				if strings.HasPrefix(tag, "+") {
+					tag = tag[1:]
 				}
-				set[scope] = true
+				set[tag] = true
 			}
 		}
 
-		var scopes []string
-		for _, scope := range c.Scopes {
-			isRetain, found := set[scope]
+		var tags []string
+		for _, tag := range c.Tags {
+			isRetain, found := set[tag]
 			if !found || isRetain {
-				scopes = append(scopes, scope)
+				tags = append(tags, tag)
 			}
 		}
 
-		for scope, add := range set {
+		for tag, add := range set {
 			if !add {
 				continue
 			}
-			scopes = append(scopes, scope)
+			tags = append(tags, tag)
 		}
-		c.Scopes = scopes
+		c.Tags = tags
 	}
 
 	if updates.IsUnordered != nil {
@@ -204,7 +212,7 @@ func (c *Campaign) apply(updates Updates) error {
 	return c.Validate()
 }
 
-func cleanScope(tags []string) []string {
+func cleanTags(tags []string) []string {
 	set := map[string]struct{}{}
 	var res []string
 	for _, tag := range tags {
@@ -221,3 +229,5 @@ func cleanScope(tags []string) []string {
 	})
 	return res
 }
+
+var idPattern = regexp.MustCompile("^[A-Za-z][A-Za-z0-9_]+$")

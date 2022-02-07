@@ -21,7 +21,7 @@ var val = validator.New()
 type Enrolment struct {
 	Status         string       `json:"status" validate:"alpha,uppercase"`
 	ActorID        string       `json:"actor_id" validate:"required"`
-	CampaignID     int          `json:"campaign_id" validate:"required"`
+	CampaignID     string       `json:"campaign_id" validate:"required"`
 	StartedAt      time.Time    `json:"started_at,omitempty"`
 	EndsAt         time.Time    `json:"ends_at,omitempty"`
 	TotalSteps     int          `json:"total_steps"`

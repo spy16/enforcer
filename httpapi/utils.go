@@ -3,13 +3,36 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"time"
 
 	"github.com/rs/zerolog/log"
+
+	"github.com/spy16/enforcer"
 )
 
 type genMap map[string]interface{}
+
+func writeErr(wr http.ResponseWriter, req *http.Request, err error) {
+	switch {
+	case errors.Is(err, enforcer.ErrNotFound):
+		writeOut(wr, req, http.StatusNotFound, err)
+
+	case errors.Is(err, enforcer.ErrInvalid):
+		writeOut(wr, req, http.StatusBadRequest, err)
+
+	case errors.Is(err, enforcer.ErrIneligible):
+		writeOut(wr, req, http.StatusBadRequest, err)
+
+	case errors.Is(err, enforcer.ErrConflict):
+		writeOut(wr, req, http.StatusConflict, err)
+
+	default:
+		writeOut(wr, req, http.StatusInternalServerError,
+			enforcer.ErrInternal.WithCausef(err.Error()))
+	}
+}
 
 func writeOut(wr http.ResponseWriter, req *http.Request, status int, v ...interface{}) {
 	wr.Header().Set("Content-Type", "application/json; charset=utf-8")

@@ -40,17 +40,17 @@ func Serve(ctx context.Context, addr string, enforcerAPI *enforcer.API, getActor
 type getActor func(ctx context.Context, actorID string) (*enforcer.Actor, error)
 
 type campaignsAPI interface {
-	GetCampaign(ctx context.Context, id int) (*enforcer.Campaign, error)
+	GetCampaign(ctx context.Context, id string) (*enforcer.Campaign, error)
 	ListCampaigns(ctx context.Context, q enforcer.Query) ([]enforcer.Campaign, error)
 	CreateCampaign(ctx context.Context, c enforcer.Campaign) (*enforcer.Campaign, error)
-	UpdateCampaign(ctx context.Context, id int, updates enforcer.Updates) (*enforcer.Campaign, error)
-	DeleteCampaign(ctx context.Context, id int) error
+	UpdateCampaign(ctx context.Context, id string, updates enforcer.Updates) (*enforcer.Campaign, error)
+	DeleteCampaign(ctx context.Context, id string) error
 }
 
 type enrolmentsAPI interface {
-	GetEnrolment(ctx context.Context, campaignID int, ac enforcer.Actor) (*enforcer.Enrolment, error)
+	GetEnrolment(ctx context.Context, campaignID string, ac enforcer.Actor) (*enforcer.Enrolment, error)
 	ListAllEnrolments(ctx context.Context, ac enforcer.Actor, q enforcer.Query) ([]enforcer.Enrolment, error)
-	Enrol(ctx context.Context, campaignID int, act enforcer.Actor) (*enforcer.Enrolment, bool, error)
+	Enrol(ctx context.Context, campaignID string, act enforcer.Actor) (*enforcer.Enrolment, bool, error)
 	Ingest(ctx context.Context, completeMulti bool, ac enforcer.Actor, act enforcer.Action) ([]enforcer.Enrolment, error)
 }
 

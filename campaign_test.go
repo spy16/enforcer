@@ -71,11 +71,11 @@ func TestCampaign_IsActive(t *testing.T) {
 
 func TestCampaign_HasAllTags(t *testing.T) {
 	sample := Campaign{
-		Scopes: []string{"foo:bar", "type:test", "country:US"},
+		Tags: []string{"foo:bar", "type:test", "country:US"},
 	}
 
-	assert.True(t, sample.HasScope([]string{"foo:bar", "country:US"}))
-	assert.False(t, sample.HasScope([]string{"foo:bar", "product:ride_service"}))
+	assert.True(t, sample.HasTags([]string{"foo:bar", "country:US"}))
+	assert.False(t, sample.HasTags([]string{"foo:bar", "product:ride_service"}))
 }
 
 func TestCampaign_Validate(t *testing.T) {
@@ -91,29 +91,29 @@ func TestCampaign_Validate(t *testing.T) {
 		{
 			title: "NoRuleAtAll",
 			campaign: Campaign{
-				Name:    "foo",
-				Enabled: false,
-				StartAt: now.AddDate(0, 0, -3),
-				EndAt:   now.AddDate(0, 0, 3),
-				Scopes:  []string{"", "foo:bar"},
+				Description: "foo",
+				Enabled:     false,
+				StartAt:     now.AddDate(0, 0, -3),
+				EndAt:       now.AddDate(0, 0, 3),
+				Tags:        []string{"", "foo:bar"},
 			},
 			wantErr: ErrInvalid,
 		},
 		{
 			title: "EmptyStep",
 			campaign: Campaign{
-				Name:    "foo",
-				Enabled: false,
-				StartAt: now.AddDate(0, 0, -3),
-				EndAt:   now.AddDate(0, 0, 3),
-				Steps:   []string{"       "},
+				Description: "foo",
+				Enabled:     false,
+				StartAt:     now.AddDate(0, 0, -3),
+				EndAt:       now.AddDate(0, 0, 3),
+				Steps:       []string{"       "},
 			},
 			wantErr: ErrInvalid,
 		},
 		{
 			title: "InvalidDeadline",
 			campaign: Campaign{
-				Name:        "foo",
+				Description: "foo",
 				Enabled:     false,
 				StartAt:     now.AddDate(0, 0, -3),
 				EndAt:       now.AddDate(0, 0, 3),
@@ -125,7 +125,7 @@ func TestCampaign_Validate(t *testing.T) {
 		{
 			title: "InvalidPriority",
 			campaign: Campaign{
-				Name:        "foo",
+				Description: "foo",
 				Enabled:     false,
 				StartAt:     now.AddDate(0, 0, -3),
 				EndAt:       now.AddDate(0, 0, 3),
@@ -137,9 +137,9 @@ func TestCampaign_Validate(t *testing.T) {
 		{
 			title: "Valid",
 			campaign: Campaign{
-				Name:        "foo",
+				ID:          "foo",
 				Enabled:     false,
-				StartAt:     now.AddDate(0, 0, -3),
+				StartAt:     now.AddDate(0, 0, 1),
 				EndAt:       now.AddDate(0, 0, 3),
 				Eligibility: "not user.blocked",
 				Deadline:    10,

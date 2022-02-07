@@ -2,9 +2,7 @@ package httpapi
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
-	"strconv"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -14,22 +12,11 @@ import (
 
 func getCampaign(api campaignsAPI) http.HandlerFunc {
 	return func(wr http.ResponseWriter, req *http.Request) {
-		campID, err := strconv.ParseInt(chi.URLParam(req, "id"), 10, 64)
-		if err != nil {
-			writeOut(wr, req, http.StatusBadRequest,
-				enforcer.ErrInvalid.WithMsgf("campaign id must be an integer").WithCausef(err.Error()))
-			return
-		}
+		campID := strings.TrimSpace(chi.URLParam(req, "id"))
 
-		c, err := api.GetCampaign(req.Context(), int(campID))
+		c, err := api.GetCampaign(req.Context(), campID)
 		if err != nil {
-			if errors.Is(err, enforcer.ErrNotFound) {
-				writeOut(wr, req, http.StatusNotFound,
-					enforcer.ErrNotFound.WithCausef(err.Error()))
-			} else {
-				writeOut(wr, req, http.StatusInternalServerError,
-					enforcer.ErrInternal.WithCausef(err.Error()))
-			}
+			writeErr(wr, req, err)
 			return
 		}
 
@@ -41,16 +28,15 @@ func listCampaigns(api campaignsAPI) http.HandlerFunc {
 	return func(wr http.ResponseWriter, req *http.Request) {
 		p := req.URL.Query()
 		q := enforcer.Query{
-			OnlyActive:  p.Get("only_active") == "true",
-			Include:     intArray(cleanSplit(p.Get("include"), ",")),
-			SearchIn:    intArray(cleanSplit(p.Get("search_in"), ",")),
-			HavingScope: cleanSplit(p.Get("scope"), ","),
+			Include:    cleanSplit(p.Get("include"), ","),
+			SearchIn:   cleanSplit(p.Get("search_in"), ","),
+			HavingTags: cleanSplit(p.Get("tags"), ","),
+			OnlyActive: p.Get("only_active") == "true",
 		}
 
 		camps, err := api.ListCampaigns(req.Context(), q)
 		if err != nil {
-			writeOut(wr, req, http.StatusInternalServerError,
-				enforcer.ErrInternal.WithCausef(err.Error()))
+			writeErr(wr, req, err)
 			return
 		}
 		if camps == nil {
@@ -65,20 +51,13 @@ func createCampaign(api campaignsAPI) http.HandlerFunc {
 	return func(wr http.ResponseWriter, req *http.Request) {
 		var c enforcer.Campaign
 		if err := json.NewDecoder(req.Body).Decode(&c); err != nil {
-			writeOut(wr, req, http.StatusBadRequest,
-				enforcer.ErrInvalid.WithCausef("failed to parse body: %v", err.Error()))
+			writeErr(wr, req, enforcer.ErrInvalid.WithCausef("failed to parse body: %v", err))
 			return
 		}
 
 		created, err := api.CreateCampaign(req.Context(), c)
 		if err != nil {
-			if errors.Is(err, enforcer.ErrInvalid) {
-				writeOut(wr, req, http.StatusBadRequest,
-					enforcer.ErrInvalid.WithCausef(err.Error()))
-			} else {
-				writeOut(wr, req, http.StatusInternalServerError,
-					enforcer.ErrInvalid.WithCausef(err.Error()))
-			}
+			writeErr(wr, req, err)
 			return
 		}
 
@@ -88,29 +67,17 @@ func createCampaign(api campaignsAPI) http.HandlerFunc {
 
 func updateCampaign(api campaignsAPI) http.HandlerFunc {
 	return func(wr http.ResponseWriter, req *http.Request) {
-		campID, err := strconv.ParseInt(chi.URLParam(req, "id"), 10, 64)
-		if err != nil {
-			writeOut(wr, req, http.StatusBadRequest,
-				enforcer.ErrInvalid.WithMsgf("campaign id must be an integer").WithCausef(err.Error()))
-			return
-		}
+		campID := strings.TrimSpace(chi.URLParam(req, "id"))
 
 		var upd enforcer.Updates
 		if err := json.NewDecoder(req.Body).Decode(&upd); err != nil {
-			writeOut(wr, req, http.StatusBadRequest,
-				enforcer.ErrInvalid.WithCausef("failed to parse body: %v", err.Error()))
+			writeErr(wr, req, enforcer.ErrInvalid.WithCausef("failed to parse body: %v", err))
 			return
 		}
 
-		c, err := api.UpdateCampaign(req.Context(), int(campID), upd)
+		c, err := api.UpdateCampaign(req.Context(), campID, upd)
 		if err != nil {
-			if errors.Is(err, enforcer.ErrNotFound) {
-				writeOut(wr, req, http.StatusNotFound,
-					enforcer.ErrNotFound.WithCausef(err.Error()))
-			} else {
-				writeOut(wr, req, http.StatusInternalServerError,
-					enforcer.ErrInternal.WithCausef(err.Error()))
-			}
+			writeErr(wr, req, err)
 			return
 		}
 
@@ -120,40 +87,16 @@ func updateCampaign(api campaignsAPI) http.HandlerFunc {
 
 func deleteCampaign(api campaignsAPI) http.HandlerFunc {
 	return func(wr http.ResponseWriter, req *http.Request) {
-		campID, err := strconv.ParseInt(chi.URLParam(req, "id"), 10, 64)
-		if err != nil {
-			writeOut(wr, req, http.StatusBadRequest,
-				enforcer.ErrInvalid.WithMsgf("campaign id must be an integer").WithCausef(err.Error()))
-			return
-		}
+		campID := strings.TrimSpace(chi.URLParam(req, "id"))
 
-		err = api.DeleteCampaign(req.Context(), int(campID))
+		err := api.DeleteCampaign(req.Context(), campID)
 		if err != nil {
-			if errors.Is(err, enforcer.ErrNotFound) {
-				writeOut(wr, req, http.StatusNotFound,
-					enforcer.ErrNotFound.WithCausef(err.Error()))
-			} else {
-				writeOut(wr, req, http.StatusInternalServerError,
-					enforcer.ErrInternal.WithCausef(err.Error()))
-			}
+			writeErr(wr, req, err)
 			return
 		}
 
 		writeOut(wr, req, http.StatusNoContent)
 	}
-}
-
-func intArray(arr []string) []int {
-	var res []int
-	for _, item := range arr {
-		id, err := strconv.ParseInt(item, 10, 64)
-		if err != nil {
-			continue
-		}
-
-		res = append(res, int(id))
-	}
-	return res
 }
 
 func cleanSplit(s, sep string) []string {

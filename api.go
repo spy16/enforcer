@@ -3,6 +3,7 @@ package enforcer
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 )
 
@@ -17,9 +18,12 @@ type ruleEngine interface {
 }
 
 // GetCampaign returns campaign with given ID. Returns ErrNotFound if not found.
-func (api *API) GetCampaign(ctx context.Context, id int) (*Campaign, error) {
-	if id <= 0 {
-		return nil, ErrInvalid.WithMsgf("invalid id, must be non-zero and positive: %d", id)
+func (api *API) GetCampaign(ctx context.Context, id string) (*Campaign, error) {
+	id = strings.TrimSpace(id)
+	if !idPattern.MatchString(id) {
+		return nil, ErrInvalid.
+			WithMsgf("invalid campaign id '%s'", id).
+			WithCausef("must match '%s'", idPattern)
 	}
 	return api.Store.GetCampaign(ctx, id)
 }
@@ -40,21 +44,21 @@ func (api *API) CreateCampaign(ctx context.Context, camp Campaign) (*Campaign, e
 		return nil, err
 	}
 
-	id, err := api.Store.CreateCampaign(ctx, camp)
-	if err != nil {
+	if err := api.Store.CreateCampaign(ctx, camp); err != nil {
 		return nil, err
 	}
-	camp.ID = id
-
 	return &camp, nil
 }
 
 // UpdateCampaign merges the given partial campaign object with the existing campaign and
 // stores. The updated version is returned. Some fields may not undergo update
 // based on current usage status.
-func (api *API) UpdateCampaign(ctx context.Context, id int, updates Updates) (*Campaign, error) {
-	if id <= 0 {
-		return nil, ErrInvalid.WithMsgf("invalid id, must be non-zero and positive: %d", id)
+func (api *API) UpdateCampaign(ctx context.Context, id string, updates Updates) (*Campaign, error) {
+	id = strings.TrimSpace(id)
+	if !idPattern.MatchString(id) {
+		return nil, ErrInvalid.
+			WithMsgf("invalid campaign id '%s'", id).
+			WithCausef("must match '%s'", idPattern)
 	}
 
 	updateFn := func(ctx context.Context, actual *Campaign) error {
@@ -69,24 +73,35 @@ func (api *API) UpdateCampaign(ctx context.Context, id int, updates Updates) (*C
 }
 
 // DeleteCampaign deletes a campaign by the identifier.
-func (api *API) DeleteCampaign(ctx context.Context, id int) error {
-	if id <= 0 {
-		return ErrInvalid.WithMsgf("invalid id, must be non-zero and positive: %d", id)
+func (api *API) DeleteCampaign(ctx context.Context, id string) error {
+	id = strings.TrimSpace(id)
+	if !idPattern.MatchString(id) {
+		return ErrInvalid.
+			WithMsgf("invalid campaign id '%s'", id).
+			WithCausef("must match '%s'", idPattern)
 	}
+
 	return api.Store.DeleteCampaign(ctx, id)
 }
 
 // GetEnrolment returns an enrolment for campaign and an actor. If actor is not
 // already enrolled into the campaign and is eligible, a virtual enrolment with
 // status StatusEligible is returned.
-func (api *API) GetEnrolment(ctx context.Context, campaignID int, ac Actor) (*Enrolment, error) {
-	enr, err := api.Store.GetEnrolment(ctx, ac.ID, campaignID)
+func (api *API) GetEnrolment(ctx context.Context, id string, ac Actor) (*Enrolment, error) {
+	id = strings.TrimSpace(id)
+	if !idPattern.MatchString(id) {
+		return nil, ErrInvalid.
+			WithMsgf("invalid campaign id '%s'", id).
+			WithCausef("must match '%s'", idPattern)
+	}
+
+	enr, err := api.Store.GetEnrolment(ctx, ac.ID, id)
 	if !errors.Is(err, ErrNotFound) {
 		enr.setStatus()
 		return enr, err
 	}
 
-	camp, err := api.GetCampaign(ctx, campaignID)
+	camp, err := api.GetCampaign(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +135,7 @@ func (api *API) ListAllEnrolments(ctx context.Context, ac Actor, campQ Query) ([
 	}
 
 	var res []Enrolment
-	alreadyEnrolled := map[int]struct{}{}
+	alreadyEnrolled := map[string]struct{}{}
 	for _, enrolment := range existing {
 		enrolment.setStatus()
 		alreadyEnrolled[enrolment.CampaignID] = struct{}{}
@@ -146,7 +161,14 @@ func (api *API) ListAllEnrolments(ctx context.Context, ac Actor, campQ Query) ([
 
 // Enrol binds the given actor to the campaign. Boolean flag will be set only if
 // a new enrolment is created.
-func (api *API) Enrol(ctx context.Context, campaignID int, ac Actor) (*Enrolment, bool, error) {
+func (api *API) Enrol(ctx context.Context, campaignID string, ac Actor) (*Enrolment, bool, error) {
+	campaignID = strings.TrimSpace(campaignID)
+	if !idPattern.MatchString(campaignID) {
+		return nil, false, ErrInvalid.
+			WithMsgf("invalid campaign id '%s'", campaignID).
+			WithCausef("must match '%s'", idPattern)
+	}
+
 	enr, err := api.Store.GetEnrolment(ctx, ac.ID, campaignID)
 	if !errors.Is(err, ErrNotFound) {
 		enr.setStatus()

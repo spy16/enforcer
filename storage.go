@@ -13,16 +13,16 @@ type Store interface {
 
 // CampaignStore implementation provides storage layer for campaigns.
 type CampaignStore interface {
-	GetCampaign(ctx context.Context, id int) (*Campaign, error)
+	GetCampaign(ctx context.Context, id string) (*Campaign, error)
 	ListCampaigns(ctx context.Context, q Query) ([]Campaign, error)
-	CreateCampaign(ctx context.Context, camp Campaign) (int, error)
-	UpdateCampaign(ctx context.Context, id int, updateFn UpdateFn) (*Campaign, error)
-	DeleteCampaign(ctx context.Context, id int) error
+	CreateCampaign(ctx context.Context, camp Campaign) error
+	UpdateCampaign(ctx context.Context, id string, updateFn UpdateFn) (*Campaign, error)
+	DeleteCampaign(ctx context.Context, id string) error
 }
 
 // EnrolmentStore implementation provides storage layer for enrolments.
 type EnrolmentStore interface {
-	GetEnrolment(ctx context.Context, actorID string, campaignID int) (*Enrolment, error)
+	GetEnrolment(ctx context.Context, actorID, campaignID string) (*Enrolment, error)
 	ListEnrolments(ctx context.Context, actorID string) ([]Enrolment, error)
 	UpsertEnrolment(ctx context.Context, enrolment Enrolment) error
 }
@@ -34,27 +34,27 @@ type UpdateFn func(ctx context.Context, actual *Campaign) error
 
 // Query represents filtering options for listing campaigns.
 // Following criteria must be realised as:
-// 	`Include + (SearchIn AND OnlyActive AND HavingScope)`
+// 	`Include + (SearchIn AND OnlyActive AND HavingTags)`
 type Query struct {
 	// Include campaigns with given ids unconditionally (i.e., other
 	// filters do not apply to this).
-	Include []int `json:"include,omitempty"`
+	Include []string `json:"include,omitempty"`
 
 	// SearchIn limits the search-space to given campaign IDs and
 	// returns campaigns that match all other filters within this
 	// list.
-	SearchIn []int `json:"search_in,omitempty"`
+	SearchIn []string `json:"search_in,omitempty"`
 
 	// OnlyActive signals to return only active campaigns.
 	OnlyActive bool `json:"only_active,omitempty"`
 
-	// HavingScope returns only those campaigns that have all the
-	// given scope-tags.
-	HavingScope []string `json:"having_scope,omitempty"`
+	// HavingTags returns only those campaigns that have all the
+	// given tags.
+	HavingTags []string `json:"having_tags,omitempty"`
 }
 
 func (q Query) filterCampaigns(arr []Campaign) []Campaign {
-	searchSet := map[int]struct{}{}
+	searchSet := map[string]struct{}{}
 	for _, id := range q.SearchIn {
 		searchSet[id] = struct{}{}
 	}
@@ -80,6 +80,6 @@ func (q Query) matchQuery(c Campaign) bool {
 		}
 		isMatch = isMatch && found
 	}
-	isMatch = isMatch && (len(q.HavingScope) == 0 || c.HasScope(q.HavingScope))
+	isMatch = isMatch && (len(q.HavingTags) == 0 || c.HasTags(q.HavingTags))
 	return isMatch
 }

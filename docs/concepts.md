@@ -38,7 +38,7 @@ A sample `Campaign`:
 ```json
 {
   "name": "a-sample-campaign",
-  "scope": [
+  "tags": [
     "team:business",
     "country:us"
   ],
