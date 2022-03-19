@@ -37,7 +37,7 @@ A sample `Campaign`:
 
 ```json
 {
-  "name": "a-sample-campaign",
+  "id": "a-sample-campaign",
   "tags": [
     "team:business",
     "country:us"
@@ -71,7 +71,7 @@ An `Enrolment` is a binding between an actor and a campaign.
   "status": "ACTIVE",
   "started_at": "2022-02-03T10:59:18.762481+05:30",
   "ends_at": "2022-02-11T10:51:40.432191+05:30",
-  "remaining_steps": 1,
+  "total_steps": 2,
   "completed_steps": [
     {
       "step_id": 0,
