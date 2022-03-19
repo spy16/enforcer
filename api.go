@@ -199,7 +199,7 @@ func (api *API) Enrol(ctx context.Context, campaignID string, ac Actor) (*Enrolm
 // Ingest processes the action within current enrolments and returns the list of
 // enrolments that progressed. If completeMulti is false, only one enrolment will
 // be progressed.
-func (api *API) Ingest(ctx context.Context, completeMulti bool, ac Actor, act Action) ([]Enrolment, error) {
+func (api *API) Ingest(ctx context.Context, completeMulti bool, ac Actor, act Action) ([]IngestResult, error) {
 	if err := act.Validate(); err != nil {
 		return nil, err
 	}
@@ -210,7 +210,7 @@ func (api *API) Ingest(ctx context.Context, completeMulti bool, ac Actor, act Ac
 	}
 	api.sortApplicable(applicable)
 
-	var res []Enrolment
+	var res []IngestResult
 	var isAffected bool
 	var completionErr error
 	for _, enr := range applicable {
@@ -221,7 +221,11 @@ func (api *API) Ingest(ctx context.Context, completeMulti bool, ac Actor, act Ac
 			if completionErr = api.Store.UpsertEnrolment(ctx, enr); completionErr != nil {
 				break
 			}
-			res = append(res, enr)
+			res = append(res, IngestResult{
+				StepID:     enr.CompletedSteps[len(enr.CompletedSteps)-1].StepID,
+				ActionID:   act.ID,
+				CampaignID: enr.CampaignID,
+			})
 			if !completeMulti {
 				break
 			}
@@ -312,4 +316,10 @@ func (api *API) applyCompletion(ctx context.Context, ac Actor, act Action, enr *
 	})
 	enr.TotalSteps = len(camp.Steps)
 	return true, nil
+}
+
+type IngestResult struct {
+	StepID     int    `json:"step_id"`
+	ActionID   string `json:"action_id"`
+	CampaignID string `json:"campaign_id"`
 }

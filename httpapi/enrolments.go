@@ -114,7 +114,7 @@ func ingest(api enrolmentsAPI, getActor getActor) http.HandlerFunc {
 		}
 
 		if enr == nil {
-			enr = []enforcer.Enrolment{}
+			enr = []enforcer.IngestResult{}
 		}
 		writeOut(wr, req, http.StatusOK, enr)
 	}

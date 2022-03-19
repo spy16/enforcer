@@ -54,7 +54,7 @@ type enrolmentsAPI interface {
 	GetEnrolment(ctx context.Context, campaignID string, ac enforcer.Actor) (*enforcer.Enrolment, error)
 	ListAllEnrolments(ctx context.Context, ac enforcer.Actor, q enforcer.Query) ([]enforcer.Enrolment, error)
 	Enrol(ctx context.Context, campaignID string, act enforcer.Actor) (*enforcer.Enrolment, bool, error)
-	Ingest(ctx context.Context, completeMulti bool, ac enforcer.Actor, act enforcer.Action) ([]enforcer.Enrolment, error)
+	Ingest(ctx context.Context, completeMulti bool, ac enforcer.Actor, act enforcer.Action) ([]enforcer.IngestResult, error)
 }
 
 func pingHandler() http.HandlerFunc {
